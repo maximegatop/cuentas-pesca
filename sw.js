@@ -1,7 +1,7 @@
 // Service worker: guarda la app para usarla sin conexión.
 // Con internet, la página siempre se pide al servidor (así cada cambio publicado aparece al abrir la app).
 // Sin internet, se usa la copia guardada. Al publicar cambios, subí CACHE_VERSION y APP_VERSION en index.html.
-const CACHE_VERSION = "cuentas-pesca-v8";
+const CACHE_VERSION = "cuentas-pesca-v9";
 const FONT_CACHE = "cuentas-pesca-fuentes";
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_FILES = [
