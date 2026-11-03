@@ -361,7 +361,7 @@ td + td, th + th { padding-left: 10px; }
 <script>
 (function () {
   "use strict";
-  const APP_VERSION = "7"; // subirla junto con CACHE_VERSION de sw.js al publicar
+  const APP_VERSION = "8"; // subirla junto con CACHE_VERSION de sw.js al publicar
   const STORAGE_KEY = "cuentas-pesca-v1";
   const MIN_PEOPLE = 2, MAX_PEOPLE = 5;
   const PERSON_COLORS = ["#0e7c86", "#d9531e", "#6b8e23", "#8a5cc2", "#c2930e"];
@@ -390,7 +390,7 @@ td + td, th + th { padding-left: 10px; }
   }
   // Una salida nueva arranca vacía: los participantes y los gastos se agregan a mano
   function emptyState() {
-    return { isExample: false, title: "Salida de pesca", status: "revision", participants: [], items: [] };
+    return { isExample: false, title: "Nueva Minga", status: "revision", participants: [], items: [] };
   }
 
   // Historial: todas las salidas de este navegador, más cuál está abierta
@@ -758,7 +758,7 @@ td + td, th + th { padding-left: 10px; }
 
   function buildSummary() {
     const result = lastResult;
-    const lines = [state.title || "Salida de pesca", "Estado: " + STATUS_LABELS[state.status], "Total: " + money(result.totalCents), "", "Gastos:"];
+    const lines = [state.title || "Nueva Minga", "Estado: " + STATUS_LABELS[state.status], "Total: " + money(result.totalCents), "", "Gastos:"];
     sortedItems().forEach((item) => {
       const cents = parseAmountToCents(item.amount);
       if (!(cents > 0) || result.problems[item.id]) return;
@@ -844,7 +844,7 @@ td + td, th + th { padding-left: 10px; }
     doc.text("MINGAMAX · CALCULADORA DE GASTOS COMPARTIDOS", margin, cursorY);
     cursorY += 8;
     doc.setFontSize(20); setColor(COLOR_INK);
-    const titleLines = doc.splitTextToSize(pdfText(state.title || "Salida de pesca"), contentWidth);
+    const titleLines = doc.splitTextToSize(pdfText(state.title || "Nueva Minga"), contentWidth);
     doc.text(titleLines, margin, cursorY);
     cursorY += titleLines.length * 8;
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); setColor(COLOR_MUTED);
@@ -932,8 +932,8 @@ td + td, th + th { padding-left: 10px; }
   }
 
   function pdfFilename() {
-    const base = (state.title || "salida de pesca").normalize("NFD").replace(/[̀-ͯ]/g, "")
-      .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 60) || "salida-de-pesca";
+    const base = (state.title || "nueva minga").normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 60) || "nueva-minga";
     return "cuentas-" + base + ".pdf";
   }
 
@@ -959,7 +959,7 @@ td + td, th + th { padding-left: 10px; }
       payerId: validIds.has(item.payerId) ? item.payerId : participants[0].id,
       sharedBy: Array.isArray(item.sharedBy) ? item.sharedBy.filter((id) => validIds.has(id)) : participants.map((person) => person.id)
     }));
-    return { isExample: false, title: String(data.title || "Salida de pesca"), status: data.status === "cerrado" ? "cerrado" : "revision", participants, items,
+    return { isExample: false, title: String(data.title || "Nueva Minga"), status: data.status === "cerrado" ? "cerrado" : "revision", participants, items,
       paidTransfers: data.paidTransfers && typeof data.paidTransfers === "object" ? data.paidTransfers : {} };
   }
 
