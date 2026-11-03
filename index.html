@@ -76,6 +76,17 @@ header { display: flex; flex-wrap: wrap; align-items: end; justify-content: spac
   line-height: 1.1;
 }
 #tripTitle:hover, #tripTitle:focus { border-bottom-color: var(--line); outline: none; }
+.title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.title-row #tripTitle { width: auto; flex: 1 1 14rem; min-width: 0; }
+.status-btn {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  border: 1.5px solid currentColor; border-radius: 999px; padding: 5px 13px 5px 11px;
+  font-weight: 600; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em;
+}
+.status-btn::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.status-btn[data-status="revision"] { background: var(--float-soft); color: var(--float); }
+.status-btn[data-status="cerrado"] { background: var(--good-soft); color: var(--good); }
+.status-btn[data-status="cerrado"]::before { content: "✓"; width: auto; height: auto; background: none; font-size: .9rem; line-height: 1; }
 .header-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 .btn {
@@ -220,7 +231,10 @@ td + td, th + th { padding-left: 10px; }
   <header>
     <div class="title-block">
       <span class="eyebrow">Cuentas de la salida de pesca</span>
-      <input id="tripTitle" aria-label="Nombre de la salida" value="">
+      <div class="title-row">
+        <input id="tripTitle" aria-label="Nombre de la salida" value="">
+        <button class="status-btn" id="statusBtn" type="button" data-status="revision" title="Tocá para cambiar el estado">En revisión</button>
+      </div>
     </div>
     <div class="header-actions" id="headerActions"></div>
   </header>
@@ -303,6 +317,7 @@ td + td, th + th { padding-left: 10px; }
     return {
       isExample: true,
       title: "Laguna de Lobos, sábado",
+      status: "revision",
       participants: people,
       items: [
         { id: "i1", desc: "Nafta ida y vuelta", amount: "48.000", payerId: "p0", sharedBy: everyone.slice() },
@@ -318,6 +333,7 @@ td + td, th + th { padding-left: 10px; }
     return {
       isExample: false,
       title: "Salida de pesca",
+      status: "revision",
       participants: people,
       items: [{ id: newId("i"), desc: "", amount: "", payerId: people[0].id, sharedBy: people.map((person) => person.id) }]
     };
@@ -330,6 +346,7 @@ td + td, th + th { padding-left: 10px; }
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.participants) && Array.isArray(parsed.items)) {
           parsed.participants.forEach((person) => { if (typeof person.alias !== "string") person.alias = ""; });
+          if (parsed.status !== "cerrado") parsed.status = "revision";
           return parsed;
         }
       }
@@ -416,11 +433,20 @@ td + td, th + th { padding-left: 10px; }
     return groups.filter((group) => group.items.length);
   }
   const sortedItems = () => itemGroups().flatMap((group) => group.items);
+  const STATUS_LABELS = { revision: "En revisión", cerrado: "Cerrado" };
+  function renderStatus() {
+    const button = $("statusBtn");
+    button.dataset.status = state.status;
+    button.textContent = STATUS_LABELS[state.status];
+    button.setAttribute("aria-label", "Estado: " + STATUS_LABELS[state.status] + ". Tocá para cambiarlo a " +
+      STATUS_LABELS[state.status === "cerrado" ? "revision" : "cerrado"]);
+  }
   function markEdited() { if (state.isExample) { state.isExample = false; $("exampleNote").hidden = true; } }
 
   // ---------- Render ----------
   function renderHeader() {
     $("tripTitle").value = state.title;
+    renderStatus();
     $("exampleNote").hidden = !state.isExample;
     const actions = $("headerActions");
     if (confirmingReset) {
@@ -548,7 +574,7 @@ td + td, th + th { padding-left: 10px; }
 
   function buildSummary() {
     const result = lastResult;
-    const lines = [state.title || "Salida de pesca", "Total: " + money(result.totalCents), "", "Gastos:"];
+    const lines = [state.title || "Salida de pesca", "Estado: " + STATUS_LABELS[state.status], "Total: " + money(result.totalCents), "", "Gastos:"];
     sortedItems().forEach((item) => {
       const cents = parseAmountToCents(item.amount);
       if (!(cents > 0) || result.problems[item.id]) return;
@@ -638,6 +664,16 @@ td + td, th + th { padding-left: 10px; }
     cursorY += titleLines.length * 8;
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); setColor(COLOR_MUTED);
     doc.text(pdfText("Generado el " + new Date().toLocaleDateString("es-AR") + " · " + state.participants.map((person) => nameOf(person.id)).join(", ")), margin, cursorY);
+    // Sello de estado arriba a la derecha
+    const isClosed = state.status === "cerrado";
+    const stampColor = isClosed ? COLOR_GOOD : COLOR_FLOAT;
+    const stampText = pdfText(STATUS_LABELS[state.status].toUpperCase());
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+    const stampWidth = doc.getTextWidth(stampText) + 8;
+    doc.setDrawColor(stampColor[0], stampColor[1], stampColor[2]); doc.setLineWidth(0.5);
+    doc.roundedRect(pageWidth - margin - stampWidth, margin - 3, stampWidth, 7, 3.5, 3.5, "S");
+    setColor(stampColor);
+    doc.text(stampText, pageWidth - margin - stampWidth / 2, margin + 1.9, { align: "center" });
     cursorY += 8;
 
     // Total
@@ -831,6 +867,11 @@ td + td, th + th { padding-left: 10px; }
       const done = (label) => { target.textContent = label; setTimeout(() => { target.textContent = "Copiar"; }, 1600); };
       try { navigator.clipboard.writeText(alias).then(() => done("Copiado"), () => done("Copialo a mano")); }
       catch (error) { done("Copialo a mano"); }
+      return;
+    }
+    if (target.id === "statusBtn") {
+      state.status = state.status === "cerrado" ? "revision" : "cerrado";
+      markEdited(); renderStatus(); saveState();
       return;
     }
     if (target.id === "pdfBtn") { downloadPdf(); return; }
