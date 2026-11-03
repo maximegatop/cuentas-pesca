@@ -219,9 +219,18 @@ td + td, th + th { padding-left: 10px; }
 .transfer .who .arrow { color: var(--float); padding: 0 4px; }
 .transfer .amt { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500; }
 .transfer .pay-to {
-  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+  grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
   font-size: .85rem; color: var(--muted); min-width: 0;
 }
+.transfer .amt { justify-self: end; }
+.paid-check {
+  grid-column: 2; justify-self: end; align-self: start; display: inline-flex; align-items: center; gap: 6px;
+  font-size: .8rem; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none;
+}
+.paid-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--good); cursor: pointer; }
+.transfer.done { background: var(--good-soft); }
+.transfer.done .amt { text-decoration: line-through; color: var(--muted); }
+.transfer.done .paid-check { color: var(--good); }
 .transfer .pay-to .num { color: var(--ink); overflow-wrap: anywhere; }
 .mini-btn {
   border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
@@ -685,9 +694,13 @@ td + td, th + th { padding-left: 10px; }
     }).join("");
 
     $("transfers").innerHTML = result.transfers.length
-      ? result.transfers.map((transfer) =>
-          '<li class="transfer"><span class="who">' + escapeHtml(nameOf(transfer.from)) + '<span class="arrow">→</span>' + escapeHtml(nameOf(transfer.to)) + '</span>' +
-          '<span class="amt">' + money(transfer.amount) + '</span>' + payToHtml(transfer.to) + '</li>').join("")
+      ? result.transfers.map((transfer) => {
+          const done = isTransferDone(transfer);
+          return '<li class="transfer' + (done ? " done" : "") + '"><span class="who">' + escapeHtml(nameOf(transfer.from)) + '<span class="arrow">→</span>' + escapeHtml(nameOf(transfer.to)) + '</span>' +
+            '<span class="amt">' + money(transfer.amount) + '</span>' + payToHtml(transfer.to) +
+            '<label class="paid-check"><input type="checkbox" id="paid-' + transfer.from + '-' + transfer.to + '" data-transfer-key="' + transferKey(transfer) + '"' +
+            (done ? " checked" : "") + '>Transferencia realizada</label></li>';
+        }).join("")
       : '<li class="settled">' + (state.participants.length < MIN_PEOPLE ? "Agregá al menos " + MIN_PEOPLE + " participantes para hacer las cuentas."
         : totalCents > 0 ? "Están todos a mano. Nadie le debe nada a nadie." : "Cargá los gastos para ver las cuentas.") + '</li>';
 
@@ -696,6 +709,9 @@ td + td, th + th { padding-left: 10px; }
   }
   let lastResult = null;
 
+  // Transferencias marcadas como hechas: clave "deudor>acreedor", valor = monto en centavos al marcarla
+  const transferKey = (transfer) => transfer.from + ">" + transfer.to;
+  const isTransferDone = (transfer) => Boolean(state.paidTransfers && state.paidTransfers[transferKey(transfer)] === transfer.amount);
   const aliasOf = (id) => { const person = personById(id); return person && person.alias ? person.alias.trim() : ""; };
   function payToHtml(personId) {
     const alias = aliasOf(personId);
@@ -750,7 +766,8 @@ td + td, th + th { padding-left: 10px; }
     lines.push("", "Pagos para quedar a mano:");
     if (result.transfers.length) result.transfers.forEach((transfer) => {
       const alias = aliasOf(transfer.to);
-      lines.push("- " + nameOf(transfer.from) + " le paga " + money(transfer.amount) + " a " + nameOf(transfer.to) + (alias ? " (alias/CBU: " + alias + ")" : ""));
+      lines.push("- " + nameOf(transfer.from) + " le paga " + money(transfer.amount) + " a " + nameOf(transfer.to) + (alias ? " (alias/CBU: " + alias + ")" : "") +
+        (isTransferDone(transfer) ? " ✓ realizada" : ""));
     });
     else lines.push("- Nadie le debe nada a nadie");
     return lines.join("\n");
@@ -889,6 +906,10 @@ td + td, th + th { padding-left: 10px; }
       doc.text(pdfText(nameOf(transfer.from) + "  le paga a  " + nameOf(transfer.to)), margin + 5, cursorY + 7);
       doc.setFontSize(12);
       doc.text(pdfText(money(transfer.amount)), pageWidth - margin - 5, cursorY + 7, { align: "right" });
+      if (isTransferDone(transfer)) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9); setColor(COLOR_GOOD);
+        doc.text("REALIZADA", pageWidth - margin - 5, cursorY + 13, { align: "right" });
+      }
       doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
       setColor(alias ? COLOR_INK : COLOR_MUTED);
       doc.text(pdfText(alias ? "Alias/CBU de " + nameOf(transfer.to) + ": " + alias : nameOf(transfer.to) + " no cargó alias ni CBU"), margin + 5, cursorY + 13);
@@ -933,7 +954,8 @@ td + td, th + th { padding-left: 10px; }
       payerId: validIds.has(item.payerId) ? item.payerId : participants[0].id,
       sharedBy: Array.isArray(item.sharedBy) ? item.sharedBy.filter((id) => validIds.has(id)) : participants.map((person) => person.id)
     }));
-    return { isExample: false, title: String(data.title || "Salida de pesca"), status: data.status === "cerrado" ? "cerrado" : "revision", participants, items };
+    return { isExample: false, title: String(data.title || "Salida de pesca"), status: data.status === "cerrado" ? "cerrado" : "revision", participants, items,
+      paidTransfers: data.paidTransfers && typeof data.paidTransfers === "object" ? data.paidTransfers : {} };
   }
 
   async function exportBackup() {
@@ -1024,6 +1046,23 @@ td + td, th + th { padding-left: 10px; }
         markEdited();
       }
       renderItems(); renderResults(); return; // actualiza nombres en selects y chips
+    }
+    if (target.dataset.transferKey) {
+      const transfers = lastResult ? lastResult.transfers : [];
+      const transfer = transfers.find((entry) => transferKey(entry) === target.dataset.transferKey);
+      if (!transfer) return;
+      const wasAllDone = transfers.every(isTransferDone);
+      state.paidTransfers = state.paidTransfers || {};
+      // Se guarda el monto: si los gastos cambian y el monto es otro, la transferencia vuelve a quedar pendiente
+      if (target.checked) state.paidTransfers[transferKey(transfer)] = transfer.amount;
+      else delete state.paidTransfers[transferKey(transfer)];
+      const allDone = transfers.every(isTransferDone);
+      let message = "";
+      if (allDone && state.status !== "cerrado") { state.status = "cerrado"; message = "Se hicieron todas las transferencias: la salida quedó Cerrada."; }
+      else if (!allDone && wasAllDone && state.status === "cerrado") { state.status = "revision"; message = "Falta una transferencia: la salida volvió a En revisión."; }
+      markEdited(); renderStatus(); renderResults(); renderHistory();
+      $("copyStatus").textContent = message;
+      return;
     }
     if (target.dataset.payer) {
       const itemId = target.dataset.payer;
