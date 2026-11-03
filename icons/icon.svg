@@ -25,6 +25,10 @@
     <text x="256" y="276" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="56" fill="#1b5e20">$</text>
     <circle cx="178" cy="256" r="9" fill="#2e7d32" opacity="0.55"/>
     <circle cx="334" cy="256" r="9" fill="#2e7d32" opacity="0.55"/>
+    <!-- Rotura: baja desde el centro del borde superior hasta la mitad del alto del billete -->
+    <path d="M240 176 L250 192 L242 205 L252 219 L246 233 L254 246 L256 256 L259 245 L266 231 L260 217 L269 203 L262 190 L272 176 Z" fill="#0e5a5c"/>
+    <path d="M240 176 L250 192 L242 205 L252 219 L246 233 L254 246 L256 256" fill="none" stroke="#e3f4e4" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M272 176 L262 190 L269 203 L260 217 L266 231 L259 245 L256 256" fill="none" stroke="#e3f4e4" stroke-width="3.5" stroke-linejoin="round"/>
   </g>
 
   <!-- Marcas de tensión -->
