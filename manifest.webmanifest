@@ -1,7 +1,7 @@
 {
-  "name": "Cuentas de la Pesca",
-  "short_name": "Cuentas Pesca",
-  "description": "Dividí los gastos de una salida de pesca entre 2 a 5 personas.",
+  "name": "MingaMax",
+  "short_name": "MingaMax",
+  "description": "Calculadora de gastos compartidos entre 2 a 5 personas.",
   "lang": "es-AR",
   "start_url": "./",
   "scope": "./",

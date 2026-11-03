@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Cuentas de la Pesca</title>
-<meta name="description" content="Dividí los gastos de una salida de pesca entre 2 a 5 personas.">
+<title>MingaMax</title>
+<meta name="application-name" content="MingaMax">
+<meta name="apple-mobile-web-app-title" content="MingaMax">
+<meta name="description" content="MingaMax: calculadora de gastos compartidos entre 2 a 5 personas.">
 <meta name="theme-color" content="#0e5a5c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -274,7 +276,7 @@ td + td, th + th { padding-left: 10px; }
 <div class="wrap">
   <header>
     <div class="title-block">
-      <span class="eyebrow">Cuentas de la salida de pesca</span>
+      <span class="eyebrow">Calculadora de gastos compartidos</span>
       <div class="title-row">
         <input id="tripTitle" aria-label="Nombre de la salida" value="">
         <button class="status-btn" id="statusBtn" type="button" data-status="revision" title="Tocá para cambiar el estado">En revisión</button>
@@ -359,7 +361,7 @@ td + td, th + th { padding-left: 10px; }
 <script>
 (function () {
   "use strict";
-  const APP_VERSION = "6"; // subirla junto con CACHE_VERSION de sw.js al publicar
+  const APP_VERSION = "7"; // subirla junto con CACHE_VERSION de sw.js al publicar
   const STORAGE_KEY = "cuentas-pesca-v1";
   const MIN_PEOPLE = 2, MAX_PEOPLE = 5;
   const PERSON_COLORS = ["#0e7c86", "#d9531e", "#6b8e23", "#8a5cc2", "#c2930e"];
@@ -839,7 +841,7 @@ td + td, th + th { padding-left: 10px; }
     doc.rect(0, 0, pageWidth, 4, "F");
     cursorY = margin + 2;
     doc.setFont("helvetica", "bold"); doc.setFontSize(8); setColor(COLOR_MUTED);
-    doc.text("CUENTAS DE LA SALIDA DE PESCA", margin, cursorY);
+    doc.text("MINGAMAX · CALCULADORA DE GASTOS COMPARTIDOS", margin, cursorY);
     cursorY += 8;
     doc.setFontSize(20); setColor(COLOR_INK);
     const titleLines = doc.splitTextToSize(pdfText(state.title || "Salida de pesca"), contentWidth);
@@ -1004,7 +1006,7 @@ td + td, th + th { padding-left: 10px; }
     let pdfFile;
     try { pdfFile = makePdfFile(); } catch (error) { status.textContent = "No se pudo armar el PDF."; return; }
     try {
-      await navigator.share({ files: [pdfFile], title: state.title || "Cuentas de la pesca" });
+      await navigator.share({ files: [pdfFile], title: state.title || "MingaMax" });
       status.textContent = "";
     } catch (error) {
       status.textContent = error && error.name === "AbortError" ? "" : "No se pudo compartir. Probá con Descargar PDF.";

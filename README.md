@@ -1,6 +1,6 @@
-# Cuentas de la Pesca
+# MingaMax
 
-App web para dividir los gastos de una salida de pesca entre 2 a 5 personas:
+Calculadora de gastos compartidos: app web para dividir los gastos de una salida (de pesca o de lo que sea) entre 2 a 5 personas:
 
 - Cada gasto tiene quién lo pagó y quiénes lo comparten.
 - Calcula el total, cuánto pagó y cuánto le toca a cada uno, y los pagos mínimos para quedar a mano.
