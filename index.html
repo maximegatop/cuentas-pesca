@@ -215,6 +215,26 @@ td + td, th + th { padding-left: 10px; }
 }
 .mini-btn:hover { border-color: var(--deep); }
 .share-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.history {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; display: grid; gap: 10px;
+}
+.history .hint { margin: 0; }
+.history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.trip-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1.5px solid transparent;
+}
+.trip-row.current { border-color: var(--deep); }
+.trip-title { font-weight: 600; min-width: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.trip-total { font-family: var(--font-num); font-variant-numeric: tabular-nums; text-align: right; }
+.trip-meta { grid-column: 1 / -1; color: var(--muted); font-size: .85rem; min-width: 0; overflow-wrap: anywhere; }
+.trip-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tag { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.tag.revision { background: var(--float-soft); color: var(--float); }
+.tag.cerrado { background: var(--good-soft); color: var(--good); }
+.tag.actual { background: var(--chip-off); color: var(--deep); }
+.mini-btn.danger-mini { background: var(--bad); border-color: var(--bad); color: var(--surface); }
 .settled { color: var(--good); font-weight: 600; }
 .dot-inline { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .copy-status { font-size: .85rem; color: var(--good); min-height: 1.2em; }
@@ -245,6 +265,15 @@ td + td, th + th { padding-left: 10px; }
     <span>Estos son datos de ejemplo para mostrar cómo funciona. Editalos o empezá una salida nueva.</span>
     <button class="btn" id="exampleClear" type="button">Empezar de cero</button>
   </div>
+
+  <section class="history" id="historyPanel" hidden aria-labelledby="h-history">
+    <div class="section-head">
+      <h2 id="h-history">Salidas guardadas</h2>
+      <button class="btn" id="historyClose" type="button">Cerrar</button>
+    </div>
+    <p class="hint">Quedan guardadas en este navegador. Para pasarlas a otro dispositivo, abrí la salida y usá Guardar respaldo.</p>
+    <ul class="history-list" id="historyList"></ul>
+  </section>
 
   <div class="grid">
     <div class="col">
@@ -341,26 +370,68 @@ td + td, th + th { padding-left: 10px; }
     };
   }
 
+  // Historial: todas las salidas de este navegador, más cuál está abierta
+  const LIBRARY_KEY = "cuentas-pesca-historial-v1";
+  const isValidTrip = (trip) => Boolean(trip && Array.isArray(trip.participants) && Array.isArray(trip.items));
+  function readStorage(key) {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (error) { return null; }
+  }
+  function normalizeTrip(trip) {
+    trip.participants.forEach((person) => { if (typeof person.alias !== "string") person.alias = ""; });
+    if (trip.status !== "cerrado") trip.status = "revision";
+    if (!trip.id) trip.id = newId("s");
+    if (!trip.updatedAt) trip.updatedAt = Date.now();
+    trip.isExample = false;
+    return trip;
+  }
+  function loadLibrary() {
+    const result = { currentId: null, trips: {} };
+    const stored = readStorage(LIBRARY_KEY);
+    if (stored && stored.trips && typeof stored.trips === "object") {
+      Object.values(stored.trips).forEach((trip) => { if (isValidTrip(trip)) { normalizeTrip(trip); result.trips[trip.id] = trip; } });
+      result.currentId = stored.currentId;
+    } else {
+      // La salida que estaba guardada antes del historial pasa a ser la primera del historial
+      const legacy = readStorage(STORAGE_KEY);
+      if (isValidTrip(legacy) && !legacy.isExample) { normalizeTrip(legacy); result.trips[legacy.id] = legacy; result.currentId = legacy.id; }
+    }
+    return result;
+  }
+  const library = loadLibrary();
+  const tripsByRecent = () => Object.values(library.trips).sort((a, b) => b.updatedAt - a.updatedAt);
+  function persistLibrary() {
+    try { localStorage.setItem(LIBRARY_KEY, JSON.stringify(library)); } catch (error) { /* ignorar */ }
+  }
   function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.participants) && Array.isArray(parsed.items)) {
-          parsed.participants.forEach((person) => { if (typeof person.alias !== "string") person.alias = ""; });
-          if (parsed.status !== "cerrado") parsed.status = "revision";
-          return parsed;
-        }
-      }
-    } catch (error) { /* sin almacenamiento: seguimos con el ejemplo */ }
-    return exampleState();
+    return library.trips[library.currentId] || tripsByRecent()[0] || exampleState();
   }
   function saveState() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (error) { /* ignorar */ }
+    if (state.isExample) return; // el ejemplo entra al historial recién cuando se edita
+    if (!state.id) state.id = newId("s");
+    if (!state.updatedAt) state.updatedAt = Date.now();
+    library.trips[state.id] = state;
+    library.currentId = state.id;
+    persistLibrary();
+  }
+  // Una salida sin ningún monto cargado no se guarda al salir de ella
+  const isBlankTrip = (trip) => !trip.items.some((item) => parseAmountToCents(item.amount) > 0);
+  function switchTo(trip) {
+    if (state.id && library.trips[state.id] && state !== trip && isBlankTrip(state)) delete library.trips[state.id];
+    state = trip;
+    confirmingReset = false; confirmingDeleteId = null;
+    renderAll();
+  }
+  function deleteTrip(tripId) {
+    delete library.trips[tripId];
+    confirmingDeleteId = null;
+    if (tripId === state.id) { state = tripsByRecent()[0] || emptyState(); renderAll(); }
+    persistLibrary();
+    renderHeader(); renderHistory();
   }
 
   let state = loadState();
   let confirmingReset = false;
+  let historyOpen = false, confirmingDeleteId = null;
 
   // ---------- Cálculo ----------
   // Acepta "12.500", "12500,50", "12.500,50", "12500.5"
@@ -443,7 +514,7 @@ td + td, th + th { padding-left: 10px; }
     button.setAttribute("aria-label", "Estado: " + STATUS_LABELS[state.status] + ". Tocá para cambiarlo a " +
       STATUS_LABELS[state.status === "cerrado" ? "revision" : "cerrado"]);
   }
-  function markEdited() { if (state.isExample) { state.isExample = false; $("exampleNote").hidden = true; } }
+  function markEdited() { state.updatedAt = Date.now(); if (state.isExample) { state.isExample = false; $("exampleNote").hidden = true; } }
 
   // ---------- Render ----------
   function renderHeader() {
@@ -456,7 +527,9 @@ td + td, th + th { padding-left: 10px; }
         '<button class="btn danger" id="resetYes" type="button">Sí, borrar</button>' +
         '<button class="btn" id="resetNo" type="button">Cancelar</button>';
     } else {
-      actions.innerHTML = '<button class="btn" id="saveBackupBtn" type="button">Guardar respaldo</button>' +
+      const savedCount = Object.keys(library.trips).length + (state.isExample || library.trips[state.id] ? 0 : 1);
+      actions.innerHTML = '<button class="btn" id="historyBtn" type="button" aria-expanded="' + historyOpen + '" aria-controls="historyPanel">Historial (' + savedCount + ')</button>' +
+        '<button class="btn" id="saveBackupBtn" type="button">Guardar respaldo</button>' +
         '<button class="btn" id="openBackupBtn" type="button">Abrir respaldo</button>' +
         '<button class="btn" id="resetBtn" type="button">Nueva salida</button>';
     }
@@ -574,7 +647,36 @@ td + td, th + th { padding-left: 10px; }
       '<button class="mini-btn" type="button" data-copy-alias="' + escapeHtml(alias) + '">Copiar</button></span>';
   }
 
-  function renderAll() { renderHeader(); renderPeople(); renderItems(); renderResults(); }
+  function renderAll() { renderHeader(); renderPeople(); renderItems(); renderResults(); renderHistory(); }
+
+  function renderHistory() {
+    $("historyPanel").hidden = !historyOpen;
+    if (!historyOpen) return;
+    const trips = tripsByRecent();
+    if (!trips.length) {
+      $("historyList").innerHTML = '<li class="hint">Todavía no hay salidas guardadas. Cuando cargues una, aparece acá.</li>';
+      return;
+    }
+    $("historyList").innerHTML = trips.map((trip) => {
+      const isCurrent = trip.id === state.id;
+      const totalCents = computeSettlement(trip.participants, trip.items).totalCents;
+      const expenseCount = trip.items.filter((item) => parseAmountToCents(item.amount) > 0).length;
+      const names = trip.participants.map((person) => person.name.trim() || "Sin nombre").join(", ");
+      const date = new Date(trip.updatedAt).toLocaleDateString("es-AR");
+      const statusTag = trip.status ? '<span class="tag ' + (trip.status === "cerrado" ? "cerrado" : "revision") + '">' + (trip.status === "cerrado" ? "Cerrado" : "En revisión") + '</span>' : "";
+      const actions = confirmingDeleteId === trip.id
+        ? '<span class="hint">¿Eliminar «' + escapeHtml(trip.title || "esta salida") + '»? No se puede deshacer.</span>' +
+          '<button class="mini-btn danger-mini" type="button" data-delete-yes="' + trip.id + '">Sí, eliminar</button>' +
+          '<button class="mini-btn" type="button" data-delete-no="1">Cancelar</button>'
+        : (isCurrent ? '<span class="tag actual">Abierta ahora</span>' : '<button class="mini-btn" type="button" data-open-trip="' + trip.id + '">Abrir</button>') +
+          '<button class="mini-btn" type="button" data-delete-trip="' + trip.id + '">Eliminar</button>';
+      return '<li class="trip-row' + (isCurrent ? " current" : "") + '">' +
+        '<span class="trip-title">' + escapeHtml(trip.title || "Salida sin nombre") + statusTag + '</span>' +
+        '<span class="trip-total">' + money(totalCents) + '</span>' +
+        '<span class="trip-meta">Modificada el ' + date + ' · ' + expenseCount + (expenseCount === 1 ? " gasto" : " gastos") + ' · ' + escapeHtml(names) + '</span>' +
+        '<span class="trip-actions">' + actions + '</span></li>';
+    }).join("");
+  }
 
   function buildSummary() {
     const result = lastResult;
@@ -791,9 +893,9 @@ td + td, th + th { padding-left: 10px; }
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        state = normalizeBackup(JSON.parse(String(reader.result)));
-        confirmingReset = false;
-        renderAll();
+        const imported = normalizeBackup(JSON.parse(String(reader.result)));
+        imported.id = newId("s"); imported.updatedAt = Date.now();
+        switchTo(imported);
         message.textContent = "Se abrió el respaldo de «" + state.title + "».";
       } catch (error) {
         message.textContent = "No se pudo abrir el respaldo: " + (error instanceof SyntaxError ? "el archivo está dañado." : error.message);
@@ -915,9 +1017,30 @@ td + td, th + th { padding-left: 10px; }
       markEdited(); renderItems(); renderResults();
       return;
     }
-    if (target.id === "resetBtn") { confirmingReset = true; renderHeader(); $("resetNo").focus(); return; }
+    if (target.id === "historyBtn") {
+      historyOpen = !historyOpen; confirmingDeleteId = null;
+      renderHeader(); renderHistory();
+      if (historyOpen) $("historyPanel").scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (target.id === "historyClose") { historyOpen = false; confirmingDeleteId = null; renderHeader(); renderHistory(); return; }
+    if (target.dataset.openTrip) {
+      const trip = library.trips[target.dataset.openTrip];
+      if (trip) { historyOpen = false; switchTo(trip); $("backupMsg").textContent = "Abriste «" + (trip.title || "Salida sin nombre") + "»."; window.scrollTo(0, 0); }
+      return;
+    }
+    if (target.dataset.deleteTrip) { confirmingDeleteId = target.dataset.deleteTrip; renderHistory(); return; }
+    if (target.dataset.deleteNo) { confirmingDeleteId = null; renderHistory(); return; }
+    if (target.dataset.deleteYes) { deleteTrip(target.dataset.deleteYes); return; }
+    if (target.id === "resetBtn") {
+      const hadData = !state.isExample && !isBlankTrip(state);
+      switchTo(emptyState());
+      $("backupMsg").textContent = hadData ? "Empezaste una salida nueva. La anterior quedó en el Historial." : "";
+      $("tripTitle").focus(); $("tripTitle").select();
+      return;
+    }
     if (target.id === "resetNo") { confirmingReset = false; renderHeader(); return; }
-    if (target.id === "resetYes" || target.id === "exampleClear") { confirmingReset = false; state = emptyState(); renderAll(); return; }
+    if (target.id === "resetYes" || target.id === "exampleClear") { switchTo(emptyState()); return; }
     if (target.dataset.copyAlias) {
       const alias = target.dataset.copyAlias;
       const done = (label) => { target.textContent = label; setTimeout(() => { target.textContent = "Copiar"; }, 1600); };
