@@ -261,6 +261,7 @@ td + td, th + th { padding-left: 10px; }
 .settled { color: var(--good); font-weight: 600; }
 .dot-inline { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .copy-status { font-size: .85rem; color: var(--good); min-height: 1.2em; }
+.app-version { margin: 8px 0 0; text-align: center; font-size: .75rem; color: var(--muted); font-family: var(--font-num); }
 #copyFallback { width: 100%; min-height: 160px; font-family: var(--font-num); font-size: .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 8px; }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -351,12 +352,14 @@ td + td, th + th { padding-left: 10px; }
       </div>
     </aside>
   </div>
+  <p class="app-version" id="appVersion"></p>
 </div>
 
 <script src="vendor/jspdf.umd.min.js"></script>
 <script>
 (function () {
   "use strict";
+  const APP_VERSION = "6"; // subirla junto con CACHE_VERSION de sw.js al publicar
   const STORAGE_KEY = "cuentas-pesca-v1";
   const MIN_PEOPLE = 2, MAX_PEOPLE = 5;
   const PERSON_COLORS = ["#0e7c86", "#d9531e", "#6b8e23", "#8a5cc2", "#c2930e"];
@@ -1193,10 +1196,15 @@ td + td, th + th { padding-left: 10px; }
   });
 
   renderAll();
+  $("appVersion").textContent = "Versión " + APP_VERSION;
 
   // Modo sin conexión: el service worker guarda la app en el teléfono o la laptop
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => { /* sigue andando online */ }); });
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+        .then((registration) => registration.update())
+        .catch(() => { /* sigue andando online */ });
+    });
   }
 })();
 </script>

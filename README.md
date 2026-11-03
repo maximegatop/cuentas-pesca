@@ -20,10 +20,10 @@ Después de abrirla una vez con internet, funciona sin conexión.
 ## Publicar cambios
 
 1. Editar `index.html`.
-2. Subir el número de `CACHE_VERSION` en `sw.js` (por ejemplo `v1` → `v2`).
+2. Subir `CACHE_VERSION` en `sw.js` y `APP_VERSION` en `index.html` (la versión se ve abajo de todo en la app).
 3. Commit y push a `main`. GitHub Pages publica solo.
 
-Los dispositivos toman la versión nueva la segunda vez que abren la app con conexión.
+Los dispositivos toman la versión nueva al abrir la app con conexión.
 
 ## Archivos
 
