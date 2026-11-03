@@ -1,7 +1,7 @@
 {
   "name": "MingaMax",
   "short_name": "MingaMax",
-  "description": "Calculadora de gastos compartidos entre 2 a 5 personas.",
+  "description": "Calculadora de gastos compartidos entre 2 a 12 personas.",
   "lang": "es-AR",
   "start_url": "./",
   "scope": "./",

@@ -6,7 +6,7 @@
 <title>MingaMax</title>
 <meta name="application-name" content="MingaMax">
 <meta name="apple-mobile-web-app-title" content="MingaMax">
-<meta name="description" content="MingaMax: calculadora de gastos compartidos entre 2 a 5 personas.">
+<meta name="description" content="MingaMax: calculadora de gastos compartidos entre 2 a 12 personas.">
 <meta name="theme-color" content="#0e5a5c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -184,6 +184,7 @@ section { display: grid; gap: 12px; min-width: 0; }
 .chip input:checked + span { background: var(--good-soft); color: var(--good); text-decoration: none; }
 .chip input:checked + span::before { background: currentColor; box-shadow: inset 0 0 0 2px var(--good-soft); }
 .chip input:focus-visible + span { outline: 2px solid var(--float); outline-offset: 2px; }
+.share-quick { display: inline-flex; gap: 4px; margin-left: 4px; }
 .per-head { margin-left: auto; font-size: .8rem; color: var(--muted); }
 .item .warn-text { color: var(--bad); font-size: .85rem; }
 .group-head {
@@ -361,10 +362,10 @@ td + td, th + th { padding-left: 10px; }
 <script>
 (function () {
   "use strict";
-  const APP_VERSION = "11"; // subirla junto con CACHE_VERSION de sw.js al publicar
+  const APP_VERSION = "12"; // subirla junto con CACHE_VERSION de sw.js al publicar
   const STORAGE_KEY = "cuentas-pesca-v1";
-  const MIN_PEOPLE = 2, MAX_PEOPLE = 5;
-  const PERSON_COLORS = ["#0e7c86", "#d9531e", "#6b8e23", "#8a5cc2", "#c2930e"];
+  const MIN_PEOPLE = 2, MAX_PEOPLE = 12;
+  const PERSON_COLORS = ["#0e7c86", "#d9531e", "#6b8e23", "#8a5cc2", "#c2930e", "#1f6fbf", "#c2417a", "#2e8b57", "#5a6acf", "#b23a48", "#6d4c41", "#546e7a"];
   const currencyFormat = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   let idCounter = 0;
@@ -649,6 +650,8 @@ td + td, th + th { padding-left: 10px; }
           '<button class="icon-btn" type="button" data-remove-item="' + item.id + '" aria-label="Borrar gasto ' + (index + 1) + '">×</button>' +
         '</div>' +
         '<div class="share-row"><span class="lbl">Lo comparten</span>' + chips +
+          '<span class="share-quick"><button class="mini-btn" type="button" data-share-all="' + item.id + '">Todos</button>' +
+          '<button class="mini-btn" type="button" data-share-none="' + item.id + '">Ninguno</button></span>' +
           '<span class="per-head num" data-perhead="' + item.id + '"></span></div>' +
         '<div class="warn-text" data-warn="' + item.id + '" hidden></div>' +
       '</div>';
@@ -948,7 +951,7 @@ td + td, th + th { padding-left: 10px; }
 
   function normalizeBackup(data) {
     if (!data || !Array.isArray(data.participants) || !Array.isArray(data.items)) throw new Error("El archivo no es un respaldo de esta app.");
-    if (data.participants.length < MIN_PEOPLE || data.participants.length > MAX_PEOPLE) throw new Error("El respaldo tiene que tener de 2 a 5 participantes.");
+    if (data.participants.length > MAX_PEOPLE) throw new Error("El respaldo tiene más de " + MAX_PEOPLE + " participantes.");
     const participants = data.participants.map((person, index) => ({
       id: String(person.id || newId("p")), name: String(person.name || "Persona " + (index + 1)),
       alias: typeof person.alias === "string" ? person.alias : "", color: person.color || PERSON_COLORS[index % PERSON_COLORS.length]
@@ -1134,6 +1137,11 @@ td + td, th + th { padding-left: 10px; }
       state.items.push(item);
       markEdited(); renderItems(); renderResults();
       $("desc-" + item.id).focus();
+      return;
+    }
+    if (target.dataset.shareAll || target.dataset.shareNone) {
+      const item = state.items.find((entry) => entry.id === (target.dataset.shareAll || target.dataset.shareNone));
+      if (item) { item.sharedBy = target.dataset.shareAll ? state.participants.map((person) => person.id) : []; markEdited(); renderItems(); renderResults(); }
       return;
     }
     if (target.dataset.removeItem) {
