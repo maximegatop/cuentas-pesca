@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cuentas de la Pesca</title>
+<meta name="description" content="Dividí los gastos de una salida de pesca entre 2 a 5 personas.">
+<meta name="theme-color" content="#0e5a5c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: cuaderno de salida — columna de carga (personas + gastos) y columna de cuentas fija al costado; se apila en el teléfono */
+:root {
+  --bg: #e9f0ee;          /* agua clara */
+  --surface: #f8fbfa;
+  --ink: #142a2b;
+  --muted: #5b6f6f;
+  --line: #c9d7d4;
+  --deep: #0e5a5c;        /* agua profunda */
+  --float: #d9531e;       /* boya */
+  --float-soft: #fbe3d8;
+  --good: #1f7a4d;
+  --good-soft: #dcefe4;
+  --bad: #b23a2a;
+  --bad-soft: #f6dcd7;
+  --chip-off: #e1e9e7;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1a1b; --surface: #142526; --ink: #e3eeec; --muted: #93a8a6; --line: #284041;
+    --deep: #5cc2c0; --float: #f07a45; --float-soft: #3a2218; --good: #6fd19c; --good-soft: #17352a;
+    --bad: #f08a7a; --bad-soft: #3b1f1b; --chip-off: #1d3233; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1a1b; --surface: #142526; --ink: #e3eeec; --muted: #93a8a6; --line: #284041;
+  --deep: #5cc2c0; --float: #f07a45; --float-soft: #3a2218; --good: #6fd19c; --good-soft: #17352a;
+  --bad: #f08a7a; --bad-soft: #3b1f1b; --chip-off: #1d3233; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h2 { font-size: 1.35rem; text-transform: uppercase; letter-spacing: .04em; }
+.eyebrow { font-size: .75rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--float); outline-offset: 2px; }
+
+/* Encabezado */
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; }
+.title-block { display: grid; gap: 2px; min-width: 0; flex: 1 1 320px; }
+#tripTitle {
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(1.9rem, 5vw, 2.6rem);
+  border: 0; border-bottom: 2px dashed transparent; background: transparent; padding: 0; width: 100%;
+  line-height: 1.1;
+}
+#tripTitle:hover, #tripTitle:focus { border-bottom-color: var(--line); outline: none; }
+.header-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 7px 14px; font-weight: 600; font-size: .9rem; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover { border-color: var(--deep); }
+.btn.primary { background: var(--deep); border-color: var(--deep); color: var(--surface); }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.example-note {
+  background: var(--float-soft); border-radius: var(--radius); padding: 10px 14px;
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: .9rem;
+}
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 24px; min-width: 0; }
+
+section { display: grid; gap: 12px; min-width: 0; }
+.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+
+/* Participantes */
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.person {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) 28px; align-items: center; gap: 4px 8px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 6px 10px 12px;
+}
+.person .dot { width: 10px; height: 10px; border-radius: 50%; }
+.person .name-input { border: 0; background: transparent; width: 100%; min-width: 0; padding: 3px 0; font-weight: 600; font-size: 1rem; }
+.person .name-input:focus { outline: none; box-shadow: 0 1px 0 var(--line); }
+.person .alias-field { grid-column: 2 / -1; display: grid; gap: 2px; padding-right: 6px; }
+.person .alias-field label { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.person .alias-input {
+  width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--bg);
+  padding: 5px 8px; font-family: var(--font-num); font-size: .85rem;
+}
+.people-actions { display: flex; gap: 8px; }
+.icon-btn {
+  border: 0; background: transparent; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--muted); font-size: 1.1rem; line-height: 1;
+}
+.icon-btn:hover { background: var(--bad-soft); color: var(--bad); }
+.hint { color: var(--muted); font-size: .85rem; }
+.msg { color: var(--bad); font-size: .85rem; min-height: 1.2em; }
+
+/* Gastos */
+.items { display: grid; gap: 10px; }
+.item {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px; display: grid; gap: 10px;
+}
+.item.warn { border-color: var(--bad); }
+.item-row { display: grid; grid-template-columns: minmax(0, 1fr) 9.5rem 9rem 28px; gap: 8px; align-items: end; }
+@media (max-width: 560px) {
+  .item-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px; }
+  .item-row .f-desc { grid-column: 1 / -1; }
+}
+.field { display: grid; gap: 3px; min-width: 0; }
+.field label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.field input, .field select {
+  width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--bg);
+  padding: 7px 9px; min-width: 0;
+}
+.field input.amount { font-family: var(--font-num); text-align: right; }
+.share-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.share-row .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin-right: 4px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip span {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 8px; border-radius: 999px;
+  background: var(--chip-off); color: var(--muted); font-size: .85rem; font-weight: 600;
+  border: 1px solid transparent; user-select: none; cursor: pointer; text-decoration: line-through;
+}
+.chip span::before {
+  content: ""; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid currentColor; box-sizing: border-box;
+}
+.chip input:checked + span { background: var(--good-soft); color: var(--good); text-decoration: none; }
+.chip input:checked + span::before { background: currentColor; box-shadow: inset 0 0 0 2px var(--good-soft); }
+.chip input:focus-visible + span { outline: 2px solid var(--float); outline-offset: 2px; }
+.per-head { margin-left: auto; font-size: .8rem; color: var(--muted); }
+.item .warn-text { color: var(--bad); font-size: .85rem; }
+.group-head {
+  display: flex; align-items: center; gap: 0 2px; font-weight: 600; font-size: .9rem;
+  padding: 8px 2px 0; border-bottom: 1px dashed var(--line); padding-bottom: 4px;
+}
+.group-head .group-total { margin-left: auto; color: var(--muted); font-size: .85rem; }
+
+/* Cuentas */
+.ledger {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 18px; display: grid; gap: 18px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px);
+}
+@media (max-width: 860px) { .ledger { position: static; } }
+.total { display: grid; gap: 2px; padding-bottom: 14px; border-bottom: 1px dashed var(--line); }
+.total .big { font-family: var(--font-num); font-size: clamp(1.7rem, 4vw, 2.2rem); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.total .sub { color: var(--muted); font-size: .85rem; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th { text-align: right; font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; padding: 0 0 6px; }
+th:first-child, td:first-child { text-align: left; }
+td { padding: 7px 0; border-top: 1px solid var(--line); text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td:first-child { font-family: var(--font-body); font-weight: 600; }
+td + td, th + th { padding-left: 10px; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .82rem; }
+.pill.pos { background: var(--good-soft); color: var(--good); }
+.pill.neg { background: var(--bad-soft); color: var(--bad); }
+.pill.zero { background: var(--chip-off); color: var(--muted); }
+.transfers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.transfer {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  padding: 10px 12px; border-radius: 8px; background: var(--bg);
+}
+.transfer .who { font-weight: 600; min-width: 0; }
+.transfer .who .arrow { color: var(--float); padding: 0 4px; }
+.transfer .amt { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500; }
+.transfer .pay-to {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+  font-size: .85rem; color: var(--muted); min-width: 0;
+}
+.transfer .pay-to .num { color: var(--ink); overflow-wrap: anywhere; }
+.mini-btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 2px 10px; font-size: .78rem; font-weight: 600;
+}
+.mini-btn:hover { border-color: var(--deep); }
+.share-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.settled { color: var(--good); font-weight: 600; }
+.dot-inline { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.copy-status { font-size: .85rem; color: var(--good); min-height: 1.2em; }
+#copyFallback { width: 100%; min-height: 160px; font-family: var(--font-num); font-size: .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 8px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .item, .person { transition: border-color .15s ease; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="title-block">
+      <span class="eyebrow">Cuentas de la salida de pesca</span>
+      <input id="tripTitle" aria-label="Nombre de la salida" value="">
+    </div>
+    <div class="header-actions" id="headerActions"></div>
+  </header>
+
+  <div class="example-note" id="exampleNote" hidden>
+    <span>Estos son datos de ejemplo para mostrar cómo funciona. Editalos o empezá una salida nueva.</span>
+    <button class="btn" id="exampleClear" type="button">Empezar de cero</button>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+      <section aria-labelledby="h-people">
+        <div class="section-head">
+          <h2 id="h-people">Participantes</h2>
+          <span class="hint" id="peopleCount"></span>
+        </div>
+        <div class="people" id="people"></div>
+        <div class="people-actions" id="peopleActions"></div>
+        <div class="msg" id="peopleMsg" role="status"></div>
+      </section>
+
+      <section aria-labelledby="h-items">
+        <div class="section-head">
+          <h2 id="h-items">Gastos</h2>
+          <span class="hint">Marcá quiénes comparten cada gasto</span>
+        </div>
+        <div class="items" id="items"></div>
+        <div><button class="btn primary" id="addItem" type="button">+ Agregar gasto</button></div>
+      </section>
+    </div>
+
+    <aside class="ledger" aria-label="Cuentas">
+      <div class="total">
+        <span class="eyebrow">Gasto total</span>
+        <span class="big" id="total"></span>
+        <span class="sub" id="totalSub"></span>
+      </div>
+      <section>
+        <h2>Cada uno</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>Pagó</th><th>Le toca</th><th>Saldo</th></tr></thead>
+            <tbody id="balances"></tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h2>Quién le paga a quién</h2>
+        <ul class="transfers" id="transfers"></ul>
+      </section>
+      <div>
+        <div class="share-actions">
+          <button class="btn primary" id="sharePdfBtn" type="button" hidden>Compartir PDF</button>
+          <button class="btn primary" id="pdfBtn" type="button">Descargar PDF</button>
+          <button class="btn" id="copyBtn" type="button">Copiar resumen</button>
+        </div>
+        <div class="copy-status" id="copyStatus" role="status"></div>
+        <textarea id="copyFallback" readonly hidden aria-label="Resumen para copiar"></textarea>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  const STORAGE_KEY = "cuentas-pesca-v1";
+  const MIN_PEOPLE = 2, MAX_PEOPLE = 5;
+  const PERSON_COLORS = ["#0e7c86", "#d9531e", "#6b8e23", "#8a5cc2", "#c2930e"];
+  const currencyFormat = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  let idCounter = 0;
+  const newId = (prefix) => prefix + Date.now().toString(36) + (idCounter++).toString(36);
+
+  function exampleState() {
+    const exampleAliases = ["juan.pesca.mp", "caro.lombriz", "", "pato.anzuelo"];
+    const people = ["Juan", "Caro", "Nico", "Pato"].map((name, index) => ({ id: "p" + index, name, alias: exampleAliases[index], color: PERSON_COLORS[index] }));
+    const everyone = people.map((person) => person.id);
+    return {
+      isExample: true,
+      title: "Laguna de Lobos, sábado",
+      participants: people,
+      items: [
+        { id: "i1", desc: "Nafta ida y vuelta", amount: "48.000", payerId: "p0", sharedBy: everyone.slice() },
+        { id: "i2", desc: "Alquiler de lancha", amount: "60.000", payerId: "p0", sharedBy: everyone.slice() },
+        { id: "i3", desc: "Carnada (mojarras y lombrices)", amount: "15.500", payerId: "p1", sharedBy: everyone.slice() },
+        { id: "i4", desc: "Carne y carbón", amount: "36.000", payerId: "p2", sharedBy: everyone.slice() },
+        { id: "i5", desc: "Cerveza", amount: "18.000", payerId: "p3", sharedBy: ["p0", "p2", "p3"] }
+      ]
+    };
+  }
+  function emptyState() {
+    const people = [0, 1].map((index) => ({ id: newId("p"), name: "Persona " + (index + 1), alias: "", color: PERSON_COLORS[index] }));
+    return {
+      isExample: false,
+      title: "Salida de pesca",
+      participants: people,
+      items: [{ id: newId("i"), desc: "", amount: "", payerId: people[0].id, sharedBy: people.map((person) => person.id) }]
+    };
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.participants) && Array.isArray(parsed.items)) {
+          parsed.participants.forEach((person) => { if (typeof person.alias !== "string") person.alias = ""; });
+          return parsed;
+        }
+      }
+    } catch (error) { /* sin almacenamiento: seguimos con el ejemplo */ }
+    return exampleState();
+  }
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (error) { /* ignorar */ }
+  }
+
+  let state = loadState();
+  let confirmingReset = false;
+
+  // ---------- Cálculo ----------
+  // Acepta "12.500", "12500,50", "12.500,50", "12500.5"
+  function parseAmountToCents(raw) {
+    let text = String(raw || "").replace(/[\s$]/g, "");
+    if (!text) return 0;
+    if (text.includes(",") && text.includes(".")) text = text.replace(/\./g, "").replace(",", ".");
+    else if (text.includes(",")) text = text.replace(",", ".");
+    else if (/^\d{1,3}(\.\d{3})+$/.test(text)) text = text.replace(/\./g, "");
+    const value = Number(text);
+    if (!Number.isFinite(value) || value < 0) return NaN;
+    return Math.round(value * 100);
+  }
+
+  function computeSettlement(participants, items) {
+    const paidCents = {}, owedCents = {};
+    participants.forEach((person) => { paidCents[person.id] = 0; owedCents[person.id] = 0; });
+    const validIds = new Set(participants.map((person) => person.id));
+    let totalCents = 0;
+    const problems = {};
+
+    items.forEach((item) => {
+      const amountCents = parseAmountToCents(item.amount);
+      const sharers = item.sharedBy.filter((id) => validIds.has(id));
+      if (Number.isNaN(amountCents)) { problems[item.id] = "El monto no es un número válido."; return; }
+      if (amountCents === 0) return;
+      if (!validIds.has(item.payerId)) { problems[item.id] = "Elegí quién lo pagó."; return; }
+      if (sharers.length === 0) { problems[item.id] = "Marcá al menos una persona que comparta este gasto."; return; }
+      totalCents += amountCents;
+      paidCents[item.payerId] += amountCents;
+      // Reparto en centavos: el resto se reparte de a 1 centavo para que la suma cierre exacta
+      const baseShare = Math.floor(amountCents / sharers.length);
+      let remainder = amountCents - baseShare * sharers.length;
+      sharers.forEach((id) => {
+        owedCents[id] += baseShare + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+      });
+    });
+
+    const balances = participants.map((person) => ({
+      id: person.id, paid: paidCents[person.id], owed: owedCents[person.id],
+      balance: paidCents[person.id] - owedCents[person.id]
+    }));
+
+    // Transferencias mínimas: el que más debe le paga al que más tiene a favor
+    const debtors = balances.filter((row) => row.balance < 0).map((row) => ({ id: row.id, amount: -row.balance })).sort((a, b) => b.amount - a.amount);
+    const creditors = balances.filter((row) => row.balance > 0).map((row) => ({ id: row.id, amount: row.balance })).sort((a, b) => b.amount - a.amount);
+    const transfers = [];
+    let debtorIndex = 0, creditorIndex = 0;
+    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+      const debtor = debtors[debtorIndex], creditor = creditors[creditorIndex];
+      const amount = Math.min(debtor.amount, creditor.amount);
+      if (amount > 0) transfers.push({ from: debtor.id, to: creditor.id, amount });
+      debtor.amount -= amount; creditor.amount -= amount;
+      if (debtor.amount === 0) debtorIndex++;
+      if (creditor.amount === 0) creditorIndex++;
+    }
+    return { totalCents, balances, transfers, problems };
+  }
+
+  // ---------- Utilidades ----------
+  const money = (cents) => currencyFormat.format(cents / 100);
+  const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  const personById = (id) => state.participants.find((person) => person.id === id);
+  const nameOf = (id) => { const person = personById(id); return person ? (person.name.trim() || "Sin nombre") : "?"; };
+  const $ = (id) => document.getElementById(id);
+  // Gastos agrupados por quién pagó, en el orden de los participantes; dentro de cada grupo, en el orden de carga
+  function itemGroups() {
+    const groups = state.participants.map((person) => ({ payerId: person.id, items: state.items.filter((item) => item.payerId === person.id) }));
+    const orphans = state.items.filter((item) => !personById(item.payerId));
+    if (orphans.length) groups.push({ payerId: null, items: orphans });
+    return groups.filter((group) => group.items.length);
+  }
+  const sortedItems = () => itemGroups().flatMap((group) => group.items);
+  function markEdited() { if (state.isExample) { state.isExample = false; $("exampleNote").hidden = true; } }
+
+  // ---------- Render ----------
+  function renderHeader() {
+    $("tripTitle").value = state.title;
+    $("exampleNote").hidden = !state.isExample;
+    const actions = $("headerActions");
+    if (confirmingReset) {
+      actions.innerHTML = '<span class="hint">¿Borrar todo y empezar una salida nueva?</span>' +
+        '<button class="btn danger" id="resetYes" type="button">Sí, borrar</button>' +
+        '<button class="btn" id="resetNo" type="button">Cancelar</button>';
+    } else {
+      actions.innerHTML = '<button class="btn" id="resetBtn" type="button">Nueva salida</button>';
+    }
+  }
+
+  function renderPeople() {
+    const count = state.participants.length;
+    $("peopleCount").textContent = count + " de " + MAX_PEOPLE + " (mínimo " + MIN_PEOPLE + ")";
+    $("people").innerHTML = state.participants.map((person) =>
+      '<div class="person" data-person="' + person.id + '">' +
+        '<span class="dot" style="background:' + person.color + '"></span>' +
+        '<input class="name-input" id="name-' + person.id + '" data-name="' + person.id + '" value="' + escapeHtml(person.name) + '" aria-label="Nombre" maxlength="20">' +
+        '<button class="icon-btn" type="button" data-remove-person="' + person.id + '" aria-label="Quitar a ' + escapeHtml(person.name) + '"' +
+        (count <= MIN_PEOPLE ? " disabled hidden" : "") + '>×</button>' +
+        '<div class="alias-field"><label for="alias-' + person.id + '">Alias o CBU</label>' +
+          '<input class="alias-input" id="alias-' + person.id + '" data-alias="' + person.id + '" value="' + escapeHtml(person.alias || "") + '" placeholder="ej.: juan.pesca.mp" maxlength="40" autocomplete="off" spellcheck="false"></div>' +
+      '</div>').join("");
+    $("peopleActions").innerHTML = count < MAX_PEOPLE ? '<button class="btn" type="button" id="addPerson">+ Agregar persona</button>' : "";
+  }
+
+  function renderItems() {
+    let itemNumber = 0;
+    $("items").innerHTML = itemGroups().map((group) => {
+      const person = group.payerId ? personById(group.payerId) : null;
+      const head = '<div class="group-head">' +
+        (person ? '<span class="dot-inline" style="background:' + person.color + '"></span>Pagó ' + escapeHtml(nameOf(person.id)) : "Sin quién pagó") +
+        '<span class="group-total num" data-group-total="' + (group.payerId || "none") + '"></span></div>';
+      return head + group.items.map((item) => renderItemCard(item, itemNumber++)).join("");
+    }).join("");
+  }
+
+  function renderItemCard(item, index) {
+    {
+      const payerOptions = state.participants.map((person) =>
+        '<option value="' + person.id + '"' + (person.id === item.payerId ? " selected" : "") + '>' + escapeHtml(nameOf(person.id)) + '</option>').join("");
+      const chips = state.participants.map((person) =>
+        '<label class="chip"><input type="checkbox" id="share-' + item.id + '-' + person.id + '" data-share="' + item.id + '" value="' + person.id + '"' +
+        (item.sharedBy.includes(person.id) ? " checked" : "") + '><span>' + escapeHtml(nameOf(person.id)) + '</span></label>').join("");
+      return '<div class="item" data-item="' + item.id + '">' +
+        '<div class="item-row">' +
+          '<div class="field f-desc"><label for="desc-' + item.id + '">Gasto ' + (index + 1) + '</label>' +
+            '<input id="desc-' + item.id + '" data-desc="' + item.id + '" value="' + escapeHtml(item.desc) + '" placeholder="Ej.: carnada, nafta, hielo"></div>' +
+          '<div class="field"><label for="amount-' + item.id + '">Monto $</label>' +
+            '<input class="amount" id="amount-' + item.id + '" data-amount="' + item.id + '" inputmode="decimal" value="' + escapeHtml(item.amount) + '" placeholder="0"></div>' +
+          '<div class="field"><label for="payer-' + item.id + '">Lo pagó</label>' +
+            '<select id="payer-' + item.id + '" data-payer="' + item.id + '">' + payerOptions + '</select></div>' +
+          '<button class="icon-btn" type="button" data-remove-item="' + item.id + '" aria-label="Borrar gasto ' + (index + 1) + '">×</button>' +
+        '</div>' +
+        '<div class="share-row"><span class="lbl">Lo comparten</span>' + chips +
+          '<span class="per-head num" data-perhead="' + item.id + '"></span></div>' +
+        '<div class="warn-text" data-warn="' + item.id + '" hidden></div>' +
+      '</div>';
+    }
+  }
+
+  function renderResults() {
+    const result = computeSettlement(state.participants, state.items);
+    const validIds = new Set(state.participants.map((person) => person.id));
+
+    // Subtotal de cada grupo de "Pagó X"
+    document.querySelectorAll("[data-group-total]").forEach((element) => {
+      const groupId = element.dataset.groupTotal;
+      const cents = state.items
+        .filter((item) => (groupId === "none" ? !personById(item.payerId) : item.payerId === groupId) && !result.problems[item.id])
+        .reduce((sum, item) => sum + (parseAmountToCents(item.amount) || 0), 0);
+      element.textContent = money(cents);
+    });
+
+    // Por gasto: cuánto toca a cada uno y avisos
+    state.items.forEach((item) => {
+      const card = document.querySelector('[data-item="' + item.id + '"]');
+      if (!card) return;
+      const warning = result.problems[item.id];
+      card.classList.toggle("warn", Boolean(warning));
+      const warnEl = card.querySelector('[data-warn="' + item.id + '"]');
+      warnEl.hidden = !warning; warnEl.textContent = warning || "";
+      const sharers = item.sharedBy.filter((id) => validIds.has(id)).length;
+      const cents = parseAmountToCents(item.amount);
+      card.querySelector('[data-perhead="' + item.id + '"]').textContent =
+        (!warning && cents > 0 && sharers > 0) ? money(Math.floor(cents / sharers)) + " c/u" : "";
+    });
+
+    const totalCents = result.totalCents;
+    $("total").textContent = money(totalCents);
+    const validItems = state.items.filter((item) => parseAmountToCents(item.amount) > 0 && !result.problems[item.id]).length;
+    const problemCount = Object.keys(result.problems).length;
+    $("totalSub").textContent = validItems + (validItems === 1 ? " gasto" : " gastos") +
+      (problemCount ? " · " + problemCount + " sin contar (revisalos)" : "");
+
+    $("balances").innerHTML = result.balances.map((row) => {
+      const person = personById(row.id);
+      const pillClass = row.balance > 0 ? "pos" : row.balance < 0 ? "neg" : "zero";
+      const sign = row.balance > 0 ? "+" : "";
+      return '<tr><td><span class="dot-inline" style="background:' + person.color + '"></span>' + escapeHtml(nameOf(row.id)) + '</td>' +
+        '<td>' + money(row.paid) + '</td><td>' + money(row.owed) + '</td>' +
+        '<td><span class="pill ' + pillClass + '">' + sign + money(row.balance) + '</span></td></tr>';
+    }).join("");
+
+    $("transfers").innerHTML = result.transfers.length
+      ? result.transfers.map((transfer) =>
+          '<li class="transfer"><span class="who">' + escapeHtml(nameOf(transfer.from)) + '<span class="arrow">→</span>' + escapeHtml(nameOf(transfer.to)) + '</span>' +
+          '<span class="amt">' + money(transfer.amount) + '</span>' + payToHtml(transfer.to) + '</li>').join("")
+      : '<li class="settled">' + (totalCents > 0 ? "Están todos a mano. Nadie le debe nada a nadie." : "Cargá los gastos para ver las cuentas.") + '</li>';
+
+    lastResult = result;
+    saveState();
+  }
+  let lastResult = null;
+
+  const aliasOf = (id) => { const person = personById(id); return person && person.alias ? person.alias.trim() : ""; };
+  function payToHtml(personId) {
+    const alias = aliasOf(personId);
+    if (!alias) return '<span class="pay-to">' + escapeHtml(nameOf(personId)) + ' no cargó alias ni CBU</span>';
+    return '<span class="pay-to">Alias/CBU: <span class="num">' + escapeHtml(alias) + '</span>' +
+      '<button class="mini-btn" type="button" data-copy-alias="' + escapeHtml(alias) + '">Copiar</button></span>';
+  }
+
+  function renderAll() { renderHeader(); renderPeople(); renderItems(); renderResults(); }
+
+  function buildSummary() {
+    const result = lastResult;
+    const lines = [state.title || "Salida de pesca", "Total: " + money(result.totalCents), "", "Gastos:"];
+    sortedItems().forEach((item) => {
+      const cents = parseAmountToCents(item.amount);
+      if (!(cents > 0) || result.problems[item.id]) return;
+      const everyone = state.participants.every((person) => item.sharedBy.includes(person.id));
+      lines.push("- " + (item.desc.trim() || "Gasto") + ": " + money(cents) + " (pagó " + nameOf(item.payerId) + ")" +
+        (everyone ? "" : " entre " + item.sharedBy.filter((id) => personById(id)).map(nameOf).join(", ")));
+    });
+    lines.push("", "Cada uno:");
+    result.balances.forEach((row) => lines.push("- " + nameOf(row.id) + ": pagó " + money(row.paid) + ", le toca " + money(row.owed)));
+    lines.push("", "Pagos para quedar a mano:");
+    if (result.transfers.length) result.transfers.forEach((transfer) => {
+      const alias = aliasOf(transfer.to);
+      lines.push("- " + nameOf(transfer.from) + " le paga " + money(transfer.amount) + " a " + nameOf(transfer.to) + (alias ? " (alias/CBU: " + alias + ")" : ""));
+    });
+    else lines.push("- Nadie le debe nada a nadie");
+    return lines.join("\n");
+  }
+
+  // ---------- PDF ----------
+  // Las fuentes estándar del PDF no traen "→" ni el espacio fino de Intl: se normaliza el texto
+  const pdfText = (text) => String(text).replace(/[  ]/g, " ").replace(/→/g, "->");
+
+  function buildPdf() {
+    const { jsPDF } = window.jspdf;
+    const result = lastResult;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth(), pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 16, contentWidth = pageWidth - margin * 2;
+    const COLOR_DEEP = [14, 90, 92], COLOR_FLOAT = [217, 83, 30], COLOR_INK = [20, 42, 43], COLOR_MUTED = [91, 111, 111], COLOR_LINE = [201, 215, 212];
+    const COLOR_GOOD = [31, 122, 77], COLOR_BAD = [178, 58, 42];
+    let cursorY = margin;
+
+    const setColor = (rgb) => doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+    const ensureSpace = (needed) => { if (cursorY + needed > pageHeight - margin) { doc.addPage(); cursorY = margin; } };
+    const rule = (rgb, width) => { doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(width || 0.2); doc.line(margin, cursorY, pageWidth - margin, cursorY); };
+    function sectionTitle(text) {
+      ensureSpace(16);
+      cursorY += 4;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(12); setColor(COLOR_DEEP);
+      doc.text(pdfText(text.toUpperCase()), margin, cursorY);
+      cursorY += 2.5; rule(COLOR_DEEP, 0.5); cursorY += 5;
+    }
+    // columns: [{label, width, align}] ; rows: arrays of strings (o {text, color})
+    function table(columns, rows) {
+      const lineHeight = 4.6;
+      const xPositions = []; let accumulated = margin;
+      columns.forEach((column) => { xPositions.push(accumulated); accumulated += column.width; });
+      const drawHeader = () => {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8); setColor(COLOR_MUTED);
+        columns.forEach((column, index) => {
+          const x = column.align === "right" ? xPositions[index] + column.width : xPositions[index];
+          doc.text(pdfText(column.label.toUpperCase()), x, cursorY, { align: column.align || "left" });
+        });
+        cursorY += 2; rule(COLOR_LINE); cursorY += 4.5;
+      };
+      drawHeader();
+      rows.forEach((row) => {
+        doc.setFontSize(10);
+        const cellLines = row.map((cell, index) => {
+          const text = pdfText(typeof cell === "object" ? cell.text : cell);
+          return columns[index].align === "right" ? [text] : doc.splitTextToSize(text, columns[index].width - 3);
+        });
+        const rowHeight = Math.max(...cellLines.map((lines) => lines.length)) * lineHeight;
+        if (cursorY + rowHeight + 2 > pageHeight - margin) { doc.addPage(); cursorY = margin; drawHeader(); }
+        row.forEach((cell, index) => {
+          const column = columns[index];
+          const isObject = typeof cell === "object";
+          doc.setFont("helvetica", (isObject && cell.bold) || index === 0 ? "bold" : "normal");
+          setColor(isObject && cell.color ? cell.color : COLOR_INK);
+          const x = column.align === "right" ? xPositions[index] + column.width : xPositions[index];
+          doc.text(cellLines[index], x, cursorY, { align: column.align || "left" });
+        });
+        cursorY += rowHeight - lineHeight + 2.2; rule(COLOR_LINE); cursorY += lineHeight + 0.6;
+      });
+    }
+
+    // Encabezado
+    doc.setFillColor(COLOR_DEEP[0], COLOR_DEEP[1], COLOR_DEEP[2]);
+    doc.rect(0, 0, pageWidth, 4, "F");
+    cursorY = margin + 2;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); setColor(COLOR_MUTED);
+    doc.text("CUENTAS DE LA SALIDA DE PESCA", margin, cursorY);
+    cursorY += 8;
+    doc.setFontSize(20); setColor(COLOR_INK);
+    const titleLines = doc.splitTextToSize(pdfText(state.title || "Salida de pesca"), contentWidth);
+    doc.text(titleLines, margin, cursorY);
+    cursorY += titleLines.length * 8;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); setColor(COLOR_MUTED);
+    doc.text(pdfText("Generado el " + new Date().toLocaleDateString("es-AR") + " · " + state.participants.map((person) => nameOf(person.id)).join(", ")), margin, cursorY);
+    cursorY += 8;
+
+    // Total
+    doc.setFillColor(233, 240, 238);
+    doc.roundedRect(margin, cursorY, contentWidth, 16, 2, 2, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); setColor(COLOR_MUTED);
+    doc.text("GASTO TOTAL", margin + 5, cursorY + 9.8);
+    doc.setFontSize(16); setColor(COLOR_INK);
+    doc.text(pdfText(money(result.totalCents)), pageWidth - margin - 5, cursorY + 10.5, { align: "right" });
+    cursorY += 24;
+
+    // Gastos
+    sectionTitle("Gastos");
+    const expenseRows = sortedItems()
+      .filter((item) => parseAmountToCents(item.amount) > 0 && !result.problems[item.id])
+      .map((item) => {
+        const sharers = item.sharedBy.filter((id) => personById(id));
+        const everyone = sharers.length === state.participants.length;
+        return [item.desc.trim() || "Gasto", nameOf(item.payerId), everyone ? "Todos" : sharers.map(nameOf).join(", "), money(parseAmountToCents(item.amount))];
+      });
+    table([
+      { label: "Gasto", width: 62 }, { label: "Pagó", width: 30 }, { label: "Lo comparten", width: 50 }, { label: "Monto", width: contentWidth - 142, align: "right" }
+    ], expenseRows);
+
+    // Cada uno
+    sectionTitle("Cada uno");
+    table([
+      { label: "Nombre", width: 52 }, { label: "Pagó", width: 42, align: "right" }, { label: "Le toca", width: 42, align: "right" }, { label: "Saldo", width: contentWidth - 136, align: "right" }
+    ], result.balances.map((row) => [
+      nameOf(row.id), money(row.paid), money(row.owed),
+      { text: (row.balance > 0 ? "+" : "") + money(row.balance), bold: true, color: row.balance > 0 ? COLOR_GOOD : row.balance < 0 ? COLOR_BAD : COLOR_MUTED }
+    ]));
+
+    // Pagos
+    sectionTitle("Pagos para quedar a mano");
+    if (!result.transfers.length) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); setColor(COLOR_GOOD);
+      doc.text("Están todos a mano. Nadie le debe nada a nadie.", margin, cursorY);
+      cursorY += 8;
+    }
+    result.transfers.forEach((transfer) => {
+      const alias = aliasOf(transfer.to);
+      const boxHeight = 17;
+      ensureSpace(boxHeight + 3);
+      doc.setDrawColor(COLOR_LINE[0], COLOR_LINE[1], COLOR_LINE[2]); doc.setLineWidth(0.3);
+      doc.roundedRect(margin, cursorY, contentWidth, boxHeight, 2, 2, "S");
+      doc.setFillColor(COLOR_FLOAT[0], COLOR_FLOAT[1], COLOR_FLOAT[2]);
+      doc.rect(margin, cursorY + 3, 1.2, boxHeight - 6, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); setColor(COLOR_INK);
+      doc.text(pdfText(nameOf(transfer.from) + "  le paga a  " + nameOf(transfer.to)), margin + 5, cursorY + 7);
+      doc.setFontSize(12);
+      doc.text(pdfText(money(transfer.amount)), pageWidth - margin - 5, cursorY + 7, { align: "right" });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+      setColor(alias ? COLOR_INK : COLOR_MUTED);
+      doc.text(pdfText(alias ? "Alias/CBU de " + nameOf(transfer.to) + ": " + alias : nameOf(transfer.to) + " no cargó alias ni CBU"), margin + 5, cursorY + 13);
+      cursorY += boxHeight + 3;
+    });
+
+    // Pie de página
+    const pageCount = doc.getNumberOfPages();
+    for (let page = 1; page <= pageCount; page++) {
+      doc.setPage(page);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); setColor(COLOR_MUTED);
+      doc.text(pdfText("Página " + page + " de " + pageCount), pageWidth - margin, pageHeight - 8, { align: "right" });
+    }
+    return doc.output("blob");
+  }
+
+  function pdfFilename() {
+    const base = (state.title || "salida de pesca").normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 60) || "salida-de-pesca";
+    return "cuentas-" + base + ".pdf";
+  }
+
+  function makePdfFile() {
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("jsPDF no cargó");
+    return new File([buildPdf()], pdfFilename(), { type: "application/pdf" });
+  }
+
+  // En el celular se puede mandar el PDF directo a WhatsApp con el menú de compartir del sistema
+  const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
+  try {
+    const probe = new File(["x"], "x.pdf", { type: "application/pdf" });
+    $("sharePdfBtn").hidden = !(isTouchDevice && navigator.canShare && navigator.canShare({ files: [probe] }));
+  } catch (error) { /* sin compartir nativo */ }
+
+  async function sharePdf() {
+    const status = $("copyStatus");
+    let pdfFile;
+    try { pdfFile = makePdfFile(); } catch (error) { status.textContent = "No se pudo armar el PDF."; return; }
+    try {
+      await navigator.share({ files: [pdfFile], title: state.title || "Cuentas de la pesca" });
+      status.textContent = "";
+    } catch (error) {
+      status.textContent = error && error.name === "AbortError" ? "" : "No se pudo compartir. Probá con Descargar PDF.";
+    }
+  }
+
+  function downloadPdf() {
+    const status = $("copyStatus");
+    let pdfFile;
+    try { pdfFile = makePdfFile(); } catch (error) { status.textContent = "No se pudo armar el PDF."; return; }
+    const url = URL.createObjectURL(pdfFile);
+    const link = document.createElement("a");
+    link.href = url; link.download = pdfFile.name;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    status.textContent = "PDF descargado: " + pdfFile.name;
+  }
+
+  // ---------- Eventos ----------
+  document.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target.id === "tripTitle") { state.title = target.value; markEdited(); saveState(); return; }
+    if (target.dataset.name) { personById(target.dataset.name).name = target.value; markEdited(); renderResults(); return; }
+    if (target.dataset.alias) { personById(target.dataset.alias).alias = target.value; markEdited(); renderResults(); return; }
+    if (target.dataset.desc) { state.items.find((item) => item.id === target.dataset.desc).desc = target.value; markEdited(); saveState(); return; }
+    if (target.dataset.amount) { state.items.find((item) => item.id === target.dataset.amount).amount = target.value; markEdited(); renderResults(); return; }
+  });
+
+  document.addEventListener("change", (event) => {
+    const target = event.target;
+    if (target.dataset.name) { renderItems(); renderResults(); return; } // actualiza nombres en selects y chips
+    if (target.dataset.payer) {
+      const itemId = target.dataset.payer;
+      state.items.find((item) => item.id === itemId).payerId = target.value;
+      markEdited(); renderItems(); renderResults();
+      const select = $("payer-" + itemId);
+      if (select) { select.focus(); select.scrollIntoView({ block: "nearest" }); }
+      return;
+    }
+    if (target.dataset.share) {
+      const item = state.items.find((entry) => entry.id === target.dataset.share);
+      item.sharedBy = item.sharedBy.filter((id) => id !== target.value);
+      if (target.checked) item.sharedBy.push(target.value);
+      markEdited(); renderResults();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest("button");
+    if (!target) return;
+    $("peopleMsg").textContent = "";
+
+    if (target.id === "addPerson") {
+      if (state.participants.length >= MAX_PEOPLE) return;
+      const usedColors = state.participants.map((person) => person.color);
+      const color = PERSON_COLORS.find((candidate) => !usedColors.includes(candidate)) || PERSON_COLORS[0];
+      const person = { id: newId("p"), name: "Persona " + (state.participants.length + 1), color };
+      state.participants.push(person);
+      // Por defecto, la persona nueva comparte todos los gastos existentes
+      state.items.forEach((item) => item.sharedBy.push(person.id));
+      markEdited(); renderPeople(); renderItems(); renderResults();
+      const input = $("name-" + person.id); if (input) { input.focus(); input.select(); }
+      return;
+    }
+    if (target.dataset.removePerson) {
+      const personId = target.dataset.removePerson;
+      if (state.participants.length <= MIN_PEOPLE) return;
+      const paidItems = state.items.filter((item) => item.payerId === personId && item.amount.trim());
+      if (paidItems.length) {
+        $("peopleMsg").textContent = "No se puede quitar a " + nameOf(personId) + ": figura como quien pagó " +
+          paidItems.length + (paidItems.length === 1 ? " gasto" : " gastos") + ". Cambiá quién lo pagó primero.";
+        return;
+      }
+      state.participants = state.participants.filter((person) => person.id !== personId);
+      state.items.forEach((item) => {
+        item.sharedBy = item.sharedBy.filter((id) => id !== personId);
+        if (item.payerId === personId) item.payerId = state.participants[0].id;
+      });
+      markEdited(); renderPeople(); renderItems(); renderResults();
+      return;
+    }
+    if (target.id === "addItem") {
+      const item = { id: newId("i"), desc: "", amount: "", payerId: state.participants[0].id, sharedBy: state.participants.map((person) => person.id) };
+      state.items.push(item);
+      markEdited(); renderItems(); renderResults();
+      $("desc-" + item.id).focus();
+      return;
+    }
+    if (target.dataset.removeItem) {
+      state.items = state.items.filter((item) => item.id !== target.dataset.removeItem);
+      markEdited(); renderItems(); renderResults();
+      return;
+    }
+    if (target.id === "resetBtn") { confirmingReset = true; renderHeader(); $("resetNo").focus(); return; }
+    if (target.id === "resetNo") { confirmingReset = false; renderHeader(); return; }
+    if (target.id === "resetYes" || target.id === "exampleClear") { confirmingReset = false; state = emptyState(); renderAll(); return; }
+    if (target.dataset.copyAlias) {
+      const alias = target.dataset.copyAlias;
+      const done = (label) => { target.textContent = label; setTimeout(() => { target.textContent = "Copiar"; }, 1600); };
+      try { navigator.clipboard.writeText(alias).then(() => done("Copiado"), () => done("Copialo a mano")); }
+      catch (error) { done("Copialo a mano"); }
+      return;
+    }
+    if (target.id === "pdfBtn") { downloadPdf(); return; }
+    if (target.id === "sharePdfBtn") { sharePdf(); return; }
+    if (target.id === "copyBtn") {
+      const summary = buildSummary();
+      const fallback = $("copyFallback");
+      const showFallback = () => {
+        fallback.hidden = false; fallback.value = summary; fallback.focus(); fallback.select();
+        $("copyStatus").textContent = "Seleccioná el texto y copialo a mano.";
+      };
+      try {
+        navigator.clipboard.writeText(summary).then(() => {
+          fallback.hidden = true;
+          $("copyStatus").textContent = "Resumen copiado. Pegalo en el grupo.";
+        }, showFallback);
+      } catch (error) { showFallback(); }
+    }
+  });
+
+  renderAll();
+
+  // Modo sin conexión: el service worker guarda la app en el teléfono o la laptop
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => { /* sigue andando online */ }); });
+  }
+})();
+</script>
+</body>
+</html>
