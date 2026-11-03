@@ -1,6 +1,6 @@
 // Service worker: guarda la app para usarla sin conexión.
 // Al publicar cambios, subí CACHE_VERSION para que los dispositivos tomen la versión nueva.
-const CACHE_VERSION = "cuentas-pesca-v1";
+const CACHE_VERSION = "cuentas-pesca-v2";
 const FONT_CACHE = "cuentas-pesca-fuentes";
 const APP_FILES = [
   "./",

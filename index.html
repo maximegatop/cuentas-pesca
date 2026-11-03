@@ -127,6 +127,19 @@ section { display: grid; gap: 12px; min-width: 0; }
   padding: 5px 8px; font-family: var(--font-num); font-size: .85rem;
 }
 .people-actions { display: flex; gap: 8px; }
+.known-picker {
+  flex: 1 1 auto; display: grid; gap: 10px; background: var(--surface);
+  border: 1px dashed var(--line); border-radius: var(--radius); padding: 12px;
+}
+.known-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.known-chip {
+  display: inline-grid; text-align: left; line-height: 1.25; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 6px 12px;
+}
+.known-chip:hover { border-color: var(--deep); }
+.known-chip .known-name { font-weight: 600; }
+.known-chip .known-alias { font-family: var(--font-num); font-size: .75rem; color: var(--muted); }
+.picker-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .icon-btn {
   border: 0; background: transparent; width: 28px; height: 28px; border-radius: 50%;
   display: grid; place-items: center; color: var(--muted); font-size: 1.1rem; line-height: 1;
@@ -285,6 +298,7 @@ td + td, th + th { padding-left: 10px; }
         </div>
         <div class="people" id="people"></div>
         <div class="people-actions" id="peopleActions"></div>
+        <datalist id="knownPeople"></datalist>
         <div class="msg" id="peopleMsg" role="status"></div>
       </section>
 
@@ -433,6 +447,7 @@ td + td, th + th { padding-left: 10px; }
   let state = loadState();
   let confirmingReset = false;
   let historyOpen = false, confirmingDeleteId = null;
+  let pickerOpen = false;
 
   // ---------- Cálculo ----------
   // Acepta "12.500", "12500,50", "12.500,50", "12500.5"
@@ -542,13 +557,59 @@ td + td, th + th { padding-left: 10px; }
     $("people").innerHTML = state.participants.map((person) =>
       '<div class="person" data-person="' + person.id + '">' +
         '<span class="dot" style="background:' + person.color + '"></span>' +
-        '<input class="name-input" id="name-' + person.id + '" data-name="' + person.id + '" value="' + escapeHtml(person.name) + '" aria-label="Nombre" maxlength="20">' +
+        '<input class="name-input" id="name-' + person.id + '" data-name="' + person.id + '" value="' + escapeHtml(person.name) + '" aria-label="Nombre" maxlength="20" list="knownPeople" autocomplete="off">' +
         '<button class="icon-btn" type="button" data-remove-person="' + person.id + '" aria-label="Quitar a ' + escapeHtml(person.name) + '"' +
         (count <= MIN_PEOPLE ? " disabled hidden" : "") + '>×</button>' +
         '<div class="alias-field"><label for="alias-' + person.id + '">Alias o CBU</label>' +
           '<input class="alias-input" id="alias-' + person.id + '" data-alias="' + person.id + '" value="' + escapeHtml(person.alias || "") + '" placeholder="ej.: juan.pesca.mp" maxlength="40" autocomplete="off" spellcheck="false"></div>' +
       '</div>').join("");
-    $("peopleActions").innerHTML = count < MAX_PEOPLE ? '<button class="btn" type="button" id="addPerson">+ Agregar persona</button>' : "";
+    $("knownPeople").innerHTML = knownPeople().map((known) => '<option value="' + escapeHtml(known.name) + '">').join("");
+    if (count >= MAX_PEOPLE) { pickerOpen = false; $("peopleActions").innerHTML = ""; return; }
+    const available = availableKnownPeople();
+    if (pickerOpen && available.length) {
+      $("peopleActions").innerHTML = '<div class="known-picker">' +
+        '<span class="hint">Elegí a alguien de otras salidas o agregá a alguien nuevo</span>' +
+        '<div class="known-list">' + available.map((known, index) =>
+          '<button class="known-chip" type="button" data-add-known="' + index + '"><span class="known-name">' + escapeHtml(known.name) + '</span>' +
+          '<span class="known-alias">' + escapeHtml(known.alias || "sin alias") + '</span></button>').join("") + '</div>' +
+        '<div class="picker-actions"><button class="btn primary" type="button" id="addNewPerson">+ Persona nueva</button>' +
+        '<button class="btn" type="button" id="closePicker">Cancelar</button></div></div>';
+    } else {
+      pickerOpen = false;
+      $("peopleActions").innerHTML = '<button class="btn" type="button" id="addPerson">+ Agregar persona</button>';
+    }
+  }
+
+  // ---------- Participantes de otras salidas ----------
+  const isPlaceholderName = (name) => !name.trim() || /^persona \d+$/i.test(name.trim());
+  const nameKey = (name) => name.trim().toLocaleLowerCase("es").normalize("NFD").replace(/[̀-ͯ]/g, "");
+  // Todas las personas del historial, sin repetir nombres; de cada una, el alias más reciente que tenga
+  function knownPeople() {
+    const byName = new Map();
+    tripsByRecent().filter((trip) => trip.id !== state.id).forEach((trip) => trip.participants.forEach((person) => {
+      if (isPlaceholderName(person.name)) return;
+      const key = nameKey(person.name);
+      const alias = (person.alias || "").trim();
+      const known = byName.get(key);
+      if (!known) byName.set(key, { name: person.name.trim(), alias });
+      else if (!known.alias && alias) known.alias = alias;
+    }));
+    return [...byName.values()];
+  }
+  function availableKnownPeople() {
+    const present = new Set(state.participants.map((person) => nameKey(person.name)));
+    return knownPeople().filter((known) => !present.has(nameKey(known.name)));
+  }
+  function addParticipant(name, alias, focusName) {
+    if (state.participants.length >= MAX_PEOPLE) return;
+    const usedColors = state.participants.map((person) => person.color);
+    const color = PERSON_COLORS.find((candidate) => !usedColors.includes(candidate)) || PERSON_COLORS[0];
+    const person = { id: newId("p"), name, alias, color };
+    state.participants.push(person);
+    // Por defecto, la persona nueva comparte todos los gastos existentes
+    state.items.forEach((item) => item.sharedBy.push(person.id));
+    markEdited(); renderPeople(); renderItems(); renderResults();
+    if (focusName) { const input = $("name-" + person.id); if (input) { input.focus(); input.select(); } }
   }
 
   function renderItems() {
@@ -955,7 +1016,20 @@ td + td, th + th { padding-left: 10px; }
   document.addEventListener("change", (event) => {
     const target = event.target;
     if (target.id === "backupFile") { importBackup(target.files && target.files[0]); target.value = ""; return; }
-    if (target.dataset.name) { renderItems(); renderResults(); return; } // actualiza nombres en selects y chips
+    if (target.dataset.name) {
+      // Si el nombre es de alguien de otra salida y no tiene alias, se completa solo
+      const person = personById(target.dataset.name);
+      const known = person && knownPeople().find((candidate) => nameKey(candidate.name) === nameKey(person.name));
+      if (known) {
+        person.name = known.name; target.value = known.name; // misma escritura que en las otras salidas
+        if (!(person.alias || "").trim() && known.alias) {
+          person.alias = known.alias;
+          const aliasInput = $("alias-" + person.id); if (aliasInput) aliasInput.value = known.alias;
+        }
+        markEdited();
+      }
+      renderItems(); renderResults(); return; // actualiza nombres en selects y chips
+    }
     if (target.dataset.payer) {
       const itemId = target.dataset.payer;
       state.items.find((item) => item.id === itemId).payerId = target.value;
@@ -979,14 +1053,20 @@ td + td, th + th { padding-left: 10px; }
 
     if (target.id === "addPerson") {
       if (state.participants.length >= MAX_PEOPLE) return;
-      const usedColors = state.participants.map((person) => person.color);
-      const color = PERSON_COLORS.find((candidate) => !usedColors.includes(candidate)) || PERSON_COLORS[0];
-      const person = { id: newId("p"), name: "Persona " + (state.participants.length + 1), color };
-      state.participants.push(person);
-      // Por defecto, la persona nueva comparte todos los gastos existentes
-      state.items.forEach((item) => item.sharedBy.push(person.id));
-      markEdited(); renderPeople(); renderItems(); renderResults();
-      const input = $("name-" + person.id); if (input) { input.focus(); input.select(); }
+      if (availableKnownPeople().length) {
+        pickerOpen = true; renderPeople();
+        const firstChip = document.querySelector("[data-add-known]"); if (firstChip) firstChip.focus();
+      } else {
+        addParticipant("Persona " + (state.participants.length + 1), "", true);
+      }
+      return;
+    }
+    if (target.id === "addNewPerson") { pickerOpen = false; addParticipant("Persona " + (state.participants.length + 1), "", true); return; }
+    if (target.id === "closePicker") { pickerOpen = false; renderPeople(); return; }
+    if (target.dataset.addKnown) {
+      const known = availableKnownPeople()[Number(target.dataset.addKnown)];
+      pickerOpen = false;
+      if (known) addParticipant(known.name, known.alias, false);
       return;
     }
     if (target.dataset.removePerson) {
