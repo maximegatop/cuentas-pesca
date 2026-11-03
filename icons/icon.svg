@@ -31,12 +31,6 @@
     <path d="M272 176 L262 190 L269 203 L260 217 L266 231 L259 245 L256 256" fill="none" stroke="#e3f4e4" stroke-width="3.5" stroke-linejoin="round"/>
   </g>
 
-  <!-- Marcas de tensión -->
-  <g stroke="#f8fbfa" stroke-width="7" stroke-linecap="round">
-    <path d="M232 152 L236 132 M256 150 L256 128 M280 152 L276 132"/>
-    <path d="M232 360 L236 380 M256 362 L256 384 M280 360 L276 380"/>
-  </g>
-
   <!-- Cuatro manos, una por esquina, cada una de una persona distinta -->
   <use href="#hand" transform="translate(140 190) rotate(31)" style="--sleeve:#d9531e;--skin:#f2c9a0;--shade:#d9a074"/>
   <use href="#hand" transform="translate(372 190) rotate(149) scale(1 -1)" style="--sleeve:#f0b429;--skin:#8d5a3b;--shade:#6a4027"/>
