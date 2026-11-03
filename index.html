@@ -374,15 +374,9 @@ td + td, th + th { padding-left: 10px; }
       ]
     };
   }
+  // Una salida nueva arranca vacía: los participantes y los gastos se agregan a mano
   function emptyState() {
-    const people = [0, 1].map((index) => ({ id: newId("p"), name: "Persona " + (index + 1), alias: "", color: PERSON_COLORS[index] }));
-    return {
-      isExample: false,
-      title: "Salida de pesca",
-      status: "revision",
-      participants: people,
-      items: [{ id: newId("i"), desc: "", amount: "", payerId: people[0].id, sharedBy: people.map((person) => person.id) }]
-    };
+    return { isExample: false, title: "Salida de pesca", status: "revision", participants: [], items: [] };
   }
 
   // Historial: todas las salidas de este navegador, más cuál está abierta
@@ -553,13 +547,13 @@ td + td, th + th { padding-left: 10px; }
 
   function renderPeople() {
     const count = state.participants.length;
-    $("peopleCount").textContent = count + " de " + MAX_PEOPLE + " (mínimo " + MIN_PEOPLE + ")";
-    $("people").innerHTML = state.participants.map((person) =>
+    $("peopleCount").textContent = count + " de " + MAX_PEOPLE + (count < MIN_PEOPLE ? " · agregá al menos " + MIN_PEOPLE : "");
+    $("people").innerHTML = !count ? '<p class="hint">Todavía no agregaste a nadie. Empezá con <strong>+ Agregar persona</strong>.</p>' : state.participants.map((person) =>
       '<div class="person" data-person="' + person.id + '">' +
         '<span class="dot" style="background:' + person.color + '"></span>' +
-        '<input class="name-input" id="name-' + person.id + '" data-name="' + person.id + '" value="' + escapeHtml(person.name) + '" aria-label="Nombre" maxlength="20" list="knownPeople" autocomplete="off">' +
+        '<input class="name-input" id="name-' + person.id + '" data-name="' + person.id + '" value="' + escapeHtml(person.name) + '" placeholder="Nombre" aria-label="Nombre" maxlength="20" list="knownPeople" autocomplete="off">' +
         '<button class="icon-btn" type="button" data-remove-person="' + person.id + '" aria-label="Quitar a ' + escapeHtml(person.name) + '"' +
-        (count <= MIN_PEOPLE ? " disabled hidden" : "") + '>×</button>' +
+        '>×</button>' +
         '<div class="alias-field"><label for="alias-' + person.id + '">Alias o CBU</label>' +
           '<input class="alias-input" id="alias-' + person.id + '" data-alias="' + person.id + '" value="' + escapeHtml(person.alias || "") + '" placeholder="ej.: juan.pesca.mp" maxlength="40" autocomplete="off" spellcheck="false"></div>' +
       '</div>').join("");
@@ -694,7 +688,8 @@ td + td, th + th { padding-left: 10px; }
       ? result.transfers.map((transfer) =>
           '<li class="transfer"><span class="who">' + escapeHtml(nameOf(transfer.from)) + '<span class="arrow">→</span>' + escapeHtml(nameOf(transfer.to)) + '</span>' +
           '<span class="amt">' + money(transfer.amount) + '</span>' + payToHtml(transfer.to) + '</li>').join("")
-      : '<li class="settled">' + (totalCents > 0 ? "Están todos a mano. Nadie le debe nada a nadie." : "Cargá los gastos para ver las cuentas.") + '</li>';
+      : '<li class="settled">' + (state.participants.length < MIN_PEOPLE ? "Agregá al menos " + MIN_PEOPLE + " participantes para hacer las cuentas."
+        : totalCents > 0 ? "Están todos a mano. Nadie le debe nada a nadie." : "Cargá los gastos para ver las cuentas.") + '</li>';
 
     lastResult = result;
     saveState();
@@ -1057,11 +1052,11 @@ td + td, th + th { padding-left: 10px; }
         pickerOpen = true; renderPeople();
         const firstChip = document.querySelector("[data-add-known]"); if (firstChip) firstChip.focus();
       } else {
-        addParticipant("Persona " + (state.participants.length + 1), "", true);
+        addParticipant("", "", true);
       }
       return;
     }
-    if (target.id === "addNewPerson") { pickerOpen = false; addParticipant("Persona " + (state.participants.length + 1), "", true); return; }
+    if (target.id === "addNewPerson") { pickerOpen = false; addParticipant("", "", true); return; }
     if (target.id === "closePicker") { pickerOpen = false; renderPeople(); return; }
     if (target.dataset.addKnown) {
       const known = availableKnownPeople()[Number(target.dataset.addKnown)];
@@ -1071,7 +1066,6 @@ td + td, th + th { padding-left: 10px; }
     }
     if (target.dataset.removePerson) {
       const personId = target.dataset.removePerson;
-      if (state.participants.length <= MIN_PEOPLE) return;
       const paidItems = state.items.filter((item) => item.payerId === personId && item.amount.trim());
       if (paidItems.length) {
         $("peopleMsg").textContent = "No se puede quitar a " + nameOf(personId) + ": figura como quien pagó " +
@@ -1081,13 +1075,18 @@ td + td, th + th { padding-left: 10px; }
       state.participants = state.participants.filter((person) => person.id !== personId);
       state.items.forEach((item) => {
         item.sharedBy = item.sharedBy.filter((id) => id !== personId);
-        if (item.payerId === personId) item.payerId = state.participants[0].id;
+        if (item.payerId === personId) item.payerId = state.participants[0] ? state.participants[0].id : "";
       });
       markEdited(); renderPeople(); renderItems(); renderResults();
       return;
     }
     if (target.id === "addItem") {
-      const item = { id: newId("i"), desc: "", amount: "", payerId: state.participants[0].id, sharedBy: state.participants.map((person) => person.id) };
+      if (!state.participants.length) {
+        $("peopleMsg").textContent = "Primero agregá a los participantes: cada gasto necesita saber quién lo pagó.";
+        $("peopleMsg").scrollIntoView({ block: "nearest" });
+        return;
+      }
+      const item ={ id: newId("i"), desc: "", amount: "", payerId: state.participants[0].id, sharedBy: state.participants.map((person) => person.id) };
       state.items.push(item);
       markEdited(); renderItems(); renderResults();
       $("desc-" + item.id).focus();
