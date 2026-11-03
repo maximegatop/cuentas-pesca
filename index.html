@@ -238,6 +238,8 @@ td + td, th + th { padding-left: 10px; }
     </div>
     <div class="header-actions" id="headerActions"></div>
   </header>
+  <input type="file" id="backupFile" accept=".json,application/json" hidden>
+  <div class="hint" id="backupMsg" role="status"></div>
 
   <div class="example-note" id="exampleNote" hidden>
     <span>Estos son datos de ejemplo para mostrar cómo funciona. Editalos o empezá una salida nueva.</span>
@@ -454,7 +456,9 @@ td + td, th + th { padding-left: 10px; }
         '<button class="btn danger" id="resetYes" type="button">Sí, borrar</button>' +
         '<button class="btn" id="resetNo" type="button">Cancelar</button>';
     } else {
-      actions.innerHTML = '<button class="btn" id="resetBtn" type="button">Nueva salida</button>';
+      actions.innerHTML = '<button class="btn" id="saveBackupBtn" type="button">Guardar respaldo</button>' +
+        '<button class="btn" id="openBackupBtn" type="button">Abrir respaldo</button>' +
+        '<button class="btn" id="resetBtn" type="button">Nueva salida</button>';
     }
   }
 
@@ -748,6 +752,57 @@ td + td, th + th { padding-left: 10px; }
     return "cuentas-" + base + ".pdf";
   }
 
+  // ---------- Respaldo (archivo .json con toda la salida) ----------
+  async function saveTextFile(filename, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = filename;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  function normalizeBackup(data) {
+    if (!data || !Array.isArray(data.participants) || !Array.isArray(data.items)) throw new Error("El archivo no es un respaldo de esta app.");
+    if (data.participants.length < MIN_PEOPLE || data.participants.length > MAX_PEOPLE) throw new Error("El respaldo tiene que tener de 2 a 5 participantes.");
+    const participants = data.participants.map((person, index) => ({
+      id: String(person.id || newId("p")), name: String(person.name || "Persona " + (index + 1)),
+      alias: typeof person.alias === "string" ? person.alias : "", color: person.color || PERSON_COLORS[index % PERSON_COLORS.length]
+    }));
+    const validIds = new Set(participants.map((person) => person.id));
+    const items = data.items.map((item) => ({
+      id: String(item.id || newId("i")), desc: String(item.desc || ""), amount: String(item.amount == null ? "" : item.amount),
+      payerId: validIds.has(item.payerId) ? item.payerId : participants[0].id,
+      sharedBy: Array.isArray(item.sharedBy) ? item.sharedBy.filter((id) => validIds.has(id)) : participants.map((person) => person.id)
+    }));
+    return { isExample: false, title: String(data.title || "Salida de pesca"), status: data.status === "cerrado" ? "cerrado" : "revision", participants, items };
+  }
+
+  async function exportBackup() {
+    const message = $("backupMsg");
+    const filename = pdfFilename().replace(/^cuentas-/, "respaldo-").replace(/.pdf$/, ".json");
+    const text = JSON.stringify(Object.assign({ app: "cuentas-pesca" }, state), null, 2);
+    try { await saveTextFile(filename, text); message.textContent = "Respaldo guardado: " + filename; }
+    catch (error) { message.textContent = error && error.code === "declined" ? "Respaldo cancelado." : "No se pudo guardar el respaldo. " + ((error && error.message) || ""); }
+  }
+
+  function importBackup(file) {
+    const message = $("backupMsg");
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        state = normalizeBackup(JSON.parse(String(reader.result)));
+        confirmingReset = false;
+        renderAll();
+        message.textContent = "Se abrió el respaldo de «" + state.title + "».";
+      } catch (error) {
+        message.textContent = "No se pudo abrir el respaldo: " + (error instanceof SyntaxError ? "el archivo está dañado." : error.message);
+      }
+    };
+    reader.onerror = () => { message.textContent = "No se pudo leer el archivo."; };
+    reader.readAsText(file);
+  }
+
   function makePdfFile() {
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("jsPDF no cargó");
     return new File([buildPdf()], pdfFilename(), { type: "application/pdf" });
@@ -796,6 +851,7 @@ td + td, th + th { padding-left: 10px; }
 
   document.addEventListener("change", (event) => {
     const target = event.target;
+    if (target.id === "backupFile") { importBackup(target.files && target.files[0]); target.value = ""; return; }
     if (target.dataset.name) { renderItems(); renderResults(); return; } // actualiza nombres en selects y chips
     if (target.dataset.payer) {
       const itemId = target.dataset.payer;
@@ -874,6 +930,8 @@ td + td, th + th { padding-left: 10px; }
       markEdited(); renderStatus(); saveState();
       return;
     }
+    if (target.id === "saveBackupBtn") { exportBackup(); return; }
+    if (target.id === "openBackupBtn") { $("backupFile").click(); return; }
     if (target.id === "pdfBtn") { downloadPdf(); return; }
     if (target.id === "sharePdfBtn") { sharePdf(); return; }
     if (target.id === "copyBtn") {
