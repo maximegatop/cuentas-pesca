@@ -264,6 +264,10 @@ td + td, th + th { padding-left: 10px; }
 .settled { color: var(--good); font-weight: 600; }
 .dot-inline { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .copy-status { font-size: .85rem; color: var(--good); min-height: 1.2em; }
+body.readonly #headerActions, body.readonly #peopleActions, body.readonly #addItem,
+body.readonly [data-remove-person], body.readonly [data-remove-item], body.readonly .share-quick,
+body.readonly #historyPanel, body.readonly #exampleNote { display: none !important; }
+body.readonly .status-btn { cursor: default; }
 .app-version { margin: 8px 0 0; text-align: center; font-size: .75rem; color: var(--muted); font-family: var(--font-num); }
 #copyFallback { width: 100%; min-height: 160px; font-family: var(--font-num); font-size: .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 8px; }
 
@@ -287,6 +291,11 @@ td + td, th + th { padding-left: 10px; }
   </header>
   <input type="file" id="backupFile" accept=".json,application/json" hidden>
   <div class="hint" id="backupMsg" role="status"></div>
+  <div class="example-note" id="viewerNote" hidden>
+    <span id="viewerText"></span>
+    <button class="btn primary" id="viewerSave" type="button">Guardar en mi historial</button>
+    <button class="btn" id="viewerClose" type="button">Cerrar</button>
+  </div>
 
   <div class="example-note" id="exampleNote" hidden>
     <span>Estos son datos de ejemplo para mostrar cómo funciona. Editalos o empezá una salida nueva.</span>
@@ -346,6 +355,7 @@ td + td, th + th { padding-left: 10px; }
       </section>
       <div>
         <div class="share-actions">
+          <button class="btn primary" id="shareLinkBtn" type="button">Compartir link</button>
           <button class="btn primary" id="sharePdfBtn" type="button" hidden>Compartir PDF</button>
           <button class="btn primary" id="pdfBtn" type="button">Descargar PDF</button>
           <button class="btn" id="copyBtn" type="button">Copiar resumen</button>
@@ -362,7 +372,7 @@ td + td, th + th { padding-left: 10px; }
 <script>
 (function () {
   "use strict";
-  const APP_VERSION = "12"; // subirla junto con CACHE_VERSION de sw.js al publicar
+  const APP_VERSION = "13"; // subirla junto con CACHE_VERSION de sw.js al publicar
   const STORAGE_KEY = "cuentas-pesca-v1";
   const MIN_PEOPLE = 2, MAX_PEOPLE = 12;
   const PERSON_COLORS = ["#0e7c86", "#d9531e", "#6b8e23", "#8a5cc2", "#c2930e", "#1f6fbf", "#c2417a", "#2e8b57", "#5a6acf", "#b23a48", "#6d4c41", "#546e7a"];
@@ -430,6 +440,7 @@ td + td, th + th { padding-left: 10px; }
     return library.trips[library.currentId] || tripsByRecent()[0] || exampleState();
   }
   function saveState() {
+    if (viewing) return; // una salida abierta por link no se guarda sola
     if (state.isExample) return; // el ejemplo entra al historial recién cuando se edita
     if (!state.id) state.id = newId("s");
     if (!state.updatedAt) state.updatedAt = Date.now();
@@ -712,6 +723,7 @@ td + td, th + th { padding-left: 10px; }
       : '<li class="settled">' + (state.participants.length < MIN_PEOPLE ? "Agregá al menos " + MIN_PEOPLE + " participantes para hacer las cuentas."
         : totalCents > 0 ? "Están todos a mano. Nadie le debe nada a nadie." : "Cargá los gastos para ver las cuentas.") + '</li>';
 
+    applyReadOnly();
     lastResult = result;
     saveState();
   }
@@ -992,6 +1004,107 @@ td + td, th + th { padding-left: 10px; }
     reader.readAsText(file);
   }
 
+  // ---------- Link para ver la salida (solo lectura) ----------
+  // La salida viaja comprimida después del "#": esa parte del link no se envía a ningún servidor.
+  let viewing = false, ownState = null;
+  const toBase64Url = (bytes) => {
+    let binary = "";
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  };
+  const fromBase64Url = (text) => Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), (char) => char.charCodeAt(0));
+  const streamBytes = async (bytes, transform) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(transform)).arrayBuffer());
+
+  async function packTrip(trip) {
+    const indexById = new Map(trip.participants.map((person, index) => [person.id, index]));
+    const compact = {
+      v: 1, t: trip.title, s: trip.status === "cerrado" ? 1 : 0,
+      p: trip.participants.map((person) => [person.name, person.alias || ""]),
+      i: trip.items.filter((item) => parseAmountToCents(item.amount) > 0).map((item) => [
+        item.desc, item.amount, indexById.has(item.payerId) ? indexById.get(item.payerId) : -1,
+        item.sharedBy.reduce((mask, id) => (indexById.has(id) ? mask | (1 << indexById.get(id)) : mask), 0)
+      ]),
+      d: Object.entries(trip.paidTransfers || {}).map(([key, cents]) => {
+        const [from, to] = key.split(">");
+        return [indexById.get(from), indexById.get(to), cents];
+      }).filter((entry) => entry[0] !== undefined && entry[1] !== undefined)
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(compact));
+    if (window.CompressionStream) return "z" + toBase64Url(await streamBytes(bytes, new CompressionStream("deflate-raw")));
+    return "j" + toBase64Url(bytes);
+  }
+
+  async function unpackTrip(code) {
+    let bytes = fromBase64Url(code.slice(1));
+    if (code[0] === "z") bytes = await streamBytes(bytes, new DecompressionStream("deflate-raw"));
+    else if (code[0] !== "j") throw new Error("formato desconocido");
+    const compact = JSON.parse(new TextDecoder().decode(bytes));
+    const ids = compact.p.map((entry, index) => "p" + index);
+    const paidTransfers = {};
+    (compact.d || []).forEach(([from, to, cents]) => { if (ids[from] && ids[to]) paidTransfers[ids[from] + ">" + ids[to]] = cents; });
+    return normalizeBackup({
+      title: compact.t, status: compact.s ? "cerrado" : "revision",
+      participants: compact.p.map(([name, alias], index) => ({ id: ids[index], name, alias })),
+      items: compact.i.map(([desc, amount, payerIndex, mask], index) => ({
+        id: "i" + index, desc, amount, payerId: ids[payerIndex], sharedBy: ids.filter((id, personIndex) => mask & (1 << personIndex))
+      })),
+      paidTransfers
+    });
+  }
+
+  async function shareLink() {
+    const status = $("copyStatus");
+    let url;
+    try { url = location.origin + location.pathname + "#ver=" + await packTrip(state); }
+    catch (error) { status.textContent = "No se pudo armar el link."; return; }
+    const title = state.title || "Nueva Minga";
+    const text = "Cuentas de «" + title + "» en MingaMax: tocá el link para ver quién le paga a quién.";
+    if (isTouchDevice && navigator.share) {
+      try { await navigator.share({ title, text, url }); status.textContent = ""; return; }
+      catch (error) { if (error && error.name === "AbortError") return; }
+    }
+    try {
+      await navigator.clipboard.writeText(text + "\n" + url);
+      status.textContent = "Link copiado. Pegalo en el grupo de WhatsApp.";
+    } catch (error) {
+      const fallback = $("copyFallback");
+      fallback.hidden = false; fallback.value = text + "\n" + url; fallback.focus(); fallback.select();
+      status.textContent = "Copiá el link a mano.";
+    }
+  }
+
+  async function openSharedFromHash() {
+    const match = location.hash.match(/^#ver=([A-Za-z0-9_-]+)$/);
+    if (!match) { if (viewing) exitViewing(); return; }
+    try {
+      const trip = await unpackTrip(match[1]);
+      if (!viewing) ownState = state;
+      viewing = true; state = trip; historyOpen = false; pickerOpen = false;
+      renderAll();
+      $("viewerText").textContent = "Estás viendo «" + (trip.title || "Nueva Minga") + "», compartida por link. Es solo para ver: no se puede editar.";
+      $("viewerNote").hidden = false;
+      window.scrollTo(0, 0);
+    } catch (error) {
+      $("backupMsg").textContent = "El link de la salida está incompleto o dañado. Pedí que te lo vuelvan a mandar.";
+    }
+  }
+  function leaveViewer() {
+    viewing = false;
+    $("viewerNote").hidden = true;
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  }
+  function exitViewing() {
+    leaveViewer();
+    state = ownState || loadState(); ownState = null;
+    renderAll();
+  }
+  function applyReadOnly() {
+    document.body.classList.toggle("readonly", viewing);
+    if (!viewing) return;
+    document.querySelectorAll("#people input, #people button, #items input, #items select, #items button, #tripTitle, #statusBtn, #transfers input")
+      .forEach((element) => { element.disabled = true; });
+  }
+
   function makePdfFile() {
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("jsPDF no cargó");
     return new File([buildPdf()], pdfFilename(), { type: "application/pdf" });
@@ -1187,6 +1300,17 @@ td + td, th + th { padding-left: 10px; }
     }
     if (target.id === "saveBackupBtn") { exportBackup(); return; }
     if (target.id === "openBackupBtn") { $("backupFile").click(); return; }
+    if (target.id === "shareLinkBtn") { shareLink(); return; }
+    if (target.id === "viewerClose") { exitViewing(); return; }
+    if (target.id === "viewerSave") {
+      const trip = state;
+      trip.id = newId("s"); trip.updatedAt = Date.now();
+      leaveViewer();
+      state = ownState || state; ownState = null;
+      switchTo(trip);
+      $("backupMsg").textContent = "Guardaste «" + (trip.title || "Nueva Minga") + "» en tu historial.";
+      return;
+    }
     if (target.id === "pdfBtn") { downloadPdf(); return; }
     if (target.id === "sharePdfBtn") { sharePdf(); return; }
     if (target.id === "copyBtn") {
@@ -1206,6 +1330,8 @@ td + td, th + th { padding-left: 10px; }
   });
 
   renderAll();
+  openSharedFromHash();
+  window.addEventListener("hashchange", openSharedFromHash);
   $("appVersion").textContent = "Versión " + APP_VERSION;
 
   // Modo sin conexión: el service worker guarda la app en el teléfono o la laptop
