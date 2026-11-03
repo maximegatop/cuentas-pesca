@@ -294,7 +294,7 @@ td + td, th + th { padding-left: 10px; }
       <h2 id="h-history">Salidas guardadas</h2>
       <button class="btn" id="historyClose" type="button">Cerrar</button>
     </div>
-    <p class="hint">Quedan guardadas en este navegador. Para pasarlas a otro dispositivo, abrí la salida y usá Guardar respaldo.</p>
+    <p class="hint">Quedan guardadas en este navegador. Para pasarlas a otro dispositivo, abrí la salida y usá Guardar.</p>
     <ul class="history-list" id="historyList"></ul>
   </section>
 
@@ -548,8 +548,8 @@ td + td, th + th { padding-left: 10px; }
     } else {
       const savedCount = Object.keys(library.trips).length + (state.isExample || library.trips[state.id] ? 0 : 1);
       actions.innerHTML = '<button class="btn" id="historyBtn" type="button" aria-expanded="' + historyOpen + '" aria-controls="historyPanel">Historial (' + savedCount + ')</button>' +
-        '<button class="btn" id="saveBackupBtn" type="button">Guardar respaldo</button>' +
-        '<button class="btn" id="openBackupBtn" type="button">Abrir respaldo</button>' +
+        '<button class="btn" id="saveBackupBtn" type="button" title="Guardar un respaldo (.json) de esta salida">Guardar</button>' +
+        '<button class="btn" id="openBackupBtn" type="button" title="Abrir un respaldo (.json) guardado antes">Abrir</button>' +
         '<button class="btn" id="resetBtn" type="button">Nueva salida</button>';
     }
   }
@@ -699,7 +699,7 @@ td + td, th + th { padding-left: 10px; }
           return '<li class="transfer' + (done ? " done" : "") + '"><span class="who">' + escapeHtml(nameOf(transfer.from)) + '<span class="arrow">→</span>' + escapeHtml(nameOf(transfer.to)) + '</span>' +
             '<span class="amt">' + money(transfer.amount) + '</span>' + payToHtml(transfer.to) +
             '<label class="paid-check"><input type="checkbox" id="paid-' + transfer.from + '-' + transfer.to + '" data-transfer-key="' + transferKey(transfer) + '"' +
-            (done ? " checked" : "") + '>Transferencia realizada</label></li>';
+            (done ? " checked" : "") + '>Pagado</label></li>';
         }).join("")
       : '<li class="settled">' + (state.participants.length < MIN_PEOPLE ? "Agregá al menos " + MIN_PEOPLE + " participantes para hacer las cuentas."
         : totalCents > 0 ? "Están todos a mano. Nadie le debe nada a nadie." : "Cargá los gastos para ver las cuentas.") + '</li>';
@@ -767,7 +767,7 @@ td + td, th + th { padding-left: 10px; }
     if (result.transfers.length) result.transfers.forEach((transfer) => {
       const alias = aliasOf(transfer.to);
       lines.push("- " + nameOf(transfer.from) + " le paga " + money(transfer.amount) + " a " + nameOf(transfer.to) + (alias ? " (alias/CBU: " + alias + ")" : "") +
-        (isTransferDone(transfer) ? " ✓ realizada" : ""));
+        (isTransferDone(transfer) ? " ✓ pagado" : ""));
     });
     else lines.push("- Nadie le debe nada a nadie");
     return lines.join("\n");
@@ -908,7 +908,7 @@ td + td, th + th { padding-left: 10px; }
       doc.text(pdfText(money(transfer.amount)), pageWidth - margin - 5, cursorY + 7, { align: "right" });
       if (isTransferDone(transfer)) {
         doc.setFont("helvetica", "bold"); doc.setFontSize(9); setColor(COLOR_GOOD);
-        doc.text("REALIZADA", pageWidth - margin - 5, cursorY + 13, { align: "right" });
+        doc.text("PAGADO", pageWidth - margin - 5, cursorY + 13, { align: "right" });
       }
       doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
       setColor(alias ? COLOR_INK : COLOR_MUTED);
